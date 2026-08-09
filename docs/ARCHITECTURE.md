@@ -71,10 +71,20 @@ verisini göremez — sorgu boş döner.
 
 İki kural özellikle önemlidir:
 
-- **Yükleme yetkisi görüntüleme yetkisi değildir.** Finansal veri yükleyen
-  operatör, o veriyi raporlarda göremek zorunda değildir.
+- **Yükleme yetkisi görüntüleme yetkisi değildir.** İkisi ayrı modül+eylem
+  çiftleridir; biri diğerini getirmez. Bir rol ikisini birden taşıyabilir, ama
+  bu bir tercihtir, otomatik bir sonuç değil.
 - Tüm RLS yardımcı fonksiyonları `app` şemasındadır ve `SECURITY DEFINER`
   olarak tanımlıdır. `app` şeması Supabase API'sine açılmaz.
+
+### Açılış ekranı
+
+Giriş sonrası kullanıcı sabit bir sayfaya değil, **rollerinin gerçekten
+açabildiği ilk sayfaya** yönlendirilir (`lib/auth/landing.ts`). Sabit bir
+`/daily` yönlendirmesi, o yetkiye sahip olmayan bir rolü giriş yapar yapmaz
+yetki reddi ekranına düşürürdü. Ayrıca tüm sistem rollerine `daily:view`
+verilmiştir; Günlük sayfası zaten yalnızca kullanıcının görmeye yetkili olduğu
+bilgiyi gösterir.
 
 ### Roller
 
@@ -85,9 +95,21 @@ verisini göremez — sorgu boş döner.
 | `executive` | Tüm kurumlar | Yönetici panoları ve raporlar, okuma ağırlıklı. |
 | `finance` | Tüm kurumlar | Finansal raporlar, nakit, finansal veri yükleme. |
 | `operations` | Tanımlı | Operasyon modülü ve kurum ziyaretleri. |
-| `data_operator` | Tanımlı | Yalnızca izin verilen veri tiplerini yükler. |
+| `data_operator` | Tanımlı | Tüm veri tiplerini yükler, hiçbir raporu görmez. |
+| `data_operator_sales` | Tanımlı | Satış ve CRM yükler, **performans** raporlarını görür. |
+| `data_operator_finance` | Tanımlı | Finansal veri yükler, **finansal** raporları görür. |
+| `data_operator_ads` | Tanımlı | Reklam verisi yükler, reklam raporlarını görür. |
 | `institution_manager` | Kendi kurumu | Kendi performansı, hedefi, CRM'i, sıralaması. |
 | `viewer` | Tanımlı | Salt okunur. |
+
+Operatör rolleri alan bazlıdır: kişi **yalnızca yüklediği alanın** raporunu
+görür. Satış verisi giren kişi performans raporunu görür ama grubun banka
+bakiyesini görmez; finansal veri giren kişi finansal raporu görür ama kurumlar
+arası performans sıralamasını görmez.
+
+Bu, "yükleme yetkisi ≠ görüntüleme yetkisi" ilkesini bozmaz — o ayrım mimaride
+duruyor. Değişen yalnızca rollerin hangi demetle geldiği; iki alanı da yükleyen
+birine iki rol birden verilir.
 
 ### Kullanıcı adıyla giriş
 

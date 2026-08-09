@@ -3,7 +3,9 @@
 import { redirect } from "next/navigation";
 
 import { recordAudit } from "@/lib/audit";
+import { getLandingPath } from "@/lib/auth/landing";
 import { isValidUsername, normalizeUsername, usernameToAuthEmail } from "@/lib/auth/username";
+import { getViewer } from "@/lib/auth/viewer";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -77,7 +79,10 @@ export async function loginAction(
     summary: `${profile.username} sisteme giriş yaptı`,
   });
 
-  redirect("/daily");
+  // Send the user to the first screen their roles actually open, rather than
+  // assuming everyone can see Günlük.
+  const viewer = await getViewer();
+  redirect(viewer ? getLandingPath(viewer) : "/daily");
 }
 
 export async function logoutAction() {

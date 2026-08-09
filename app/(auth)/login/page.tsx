@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "./login-form";
+import { getLandingPath } from "@/lib/auth/landing";
 import { getViewer } from "@/lib/auth/viewer";
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 
 export default async function LoginPage() {
   const viewer = await getViewer();
-  if (viewer) redirect("/daily");
+  if (viewer) redirect(getLandingPath(viewer));
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-6 py-12">

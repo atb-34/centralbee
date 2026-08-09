@@ -67,6 +67,20 @@ select '33333333-3333-3333-3333-333333333333', id from public.roles where key = 
 insert into public.user_roles (user_id, role_id)
 select '44444444-4444-4444-4444-444444444444', id from public.roles where key = 'admin';
 
+-- Alan bazlı operatörler
+insert into auth.users (id, email) values
+  ('55555555-5555-5555-5555-555555555555', 'satisop@users.centralbee.app'),
+  ('66666666-6666-6666-6666-666666666666', 'finansop@users.centralbee.app');
+
+insert into public.profiles (id, username, full_name, institution_scope) values
+  ('55555555-5555-5555-5555-555555555555', 'satisop',  'Satış Operatörü',  'all'),
+  ('66666666-6666-6666-6666-666666666666', 'finansop', 'Finans Operatörü', 'all');
+
+insert into public.user_roles (user_id, role_id)
+select '55555555-5555-5555-5555-555555555555', id from public.roles where key = 'data_operator_sales';
+insert into public.user_roles (user_id, role_id)
+select '66666666-6666-6666-6666-666666666666', id from public.roles where key = 'data_operator_finance';
+
 insert into public.audit_logs (actor_id, actor_username, action, entity_type, summary)
 values ('22222222-2222-2222-2222-222222222222', 'ceo', 'update', 'institution', 'test kaydı');
 
@@ -136,6 +150,66 @@ begin
   perform pg_temp.assert_eq(
     (select count(*) from public.institutions)::bigint, 2::bigint,
     'veri operatörü yalnızca atandığı 2 kurumu görür');
+end $$;
+
+\echo ''
+\echo '── Alan bazlı operatörler ──────────────────────────────────────'
+
+select set_config('request.jwt.claim.sub', '55555555-5555-5555-5555-555555555555', false) \gset
+
+do $$
+begin
+  -- Yüklediği alanın raporunu görür…
+  perform pg_temp.assert_eq(
+    app.has_permission('data_upload.sales:upload'), true,
+    'satış operatörü satış verisi yükleyebilir');
+
+  perform pg_temp.assert_eq(
+    app.has_permission('reports.performance:view'), true,
+    'satış operatörü performans raporunu görebilir');
+
+  -- …ama yalnızca o alanın.
+  perform pg_temp.assert_eq(
+    app.has_permission('reports.financial:view'), false,
+    'satış operatörü finansal raporu göremez');
+
+  perform pg_temp.assert_eq(
+    app.has_permission('data_upload.financial:upload'), false,
+    'satış operatörü finansal veri yükleyemez');
+
+  perform pg_temp.assert_eq(
+    app.has_permission('reports.performance.ranking:view'), false,
+    'satış operatörü kurumlar arası sıralamayı göremez');
+
+  -- Hedef koymak bir yönetim kararıdır.
+  perform pg_temp.assert_eq(
+    app.has_permission('data_upload.targets:view'), true,
+    'satış operatörü hedefleri görebilir');
+
+  perform pg_temp.assert_eq(
+    app.has_permission('data_upload.targets:edit'), false,
+    'satış operatörü hedef belirleyemez');
+end $$;
+
+select set_config('request.jwt.claim.sub', '66666666-6666-6666-6666-666666666666', false) \gset
+
+do $$
+begin
+  perform pg_temp.assert_eq(
+    app.has_permission('data_upload.financial:upload'), true,
+    'finans operatörü finansal veri yükleyebilir');
+
+  perform pg_temp.assert_eq(
+    app.has_permission('reports.financial:view'), true,
+    'finans operatörü finansal raporu görebilir');
+
+  perform pg_temp.assert_eq(
+    app.has_permission('reports.performance:view'), false,
+    'finans operatörü performans raporunu göremez');
+
+  perform pg_temp.assert_eq(
+    app.has_permission('data_upload.sales:upload'), false,
+    'finans operatörü satış verisi yükleyemez');
 end $$;
 
 \echo ''
@@ -233,8 +307,20 @@ end $$;
 do $$
 begin
   perform pg_temp.assert_eq(
-    (select count(*) from public.roles where is_system)::bigint, 8::bigint,
-    '8 sistem rolü tanımlı');
+    (select count(*) from public.roles where is_system)::bigint, 11::bigint,
+    '11 sistem rolü tanımlı');
+
+  -- Giriş sonrası açılış ekranı Günlük'tür; bu yetkisi olmayan bir rol
+  -- kullanıcıyı doğrudan yetki reddi ekranına düşürürdü.
+  perform pg_temp.assert_eq(
+    (select count(*) from public.roles r
+     where r.is_system
+       and not exists (
+         select 1 from public.role_permissions rp
+         join public.permissions p on p.id = rp.permission_id
+         where rp.role_id = r.id and p.key = 'daily:view'
+       ))::bigint, 0::bigint,
+    'her sistem rolü açılış ekranını açabilir');
 
   perform pg_temp.assert_eq(
     (select count(*) from public.permissions
@@ -250,14 +336,17 @@ begin
        ))::bigint, 0::bigint,
     'izleyici rolü yalnızca görüntüleme yetkisi taşır');
 
+  -- Genel operatör rolü rapor taşımaz; alan bazlı roller bunun için vardır.
   perform pg_temp.assert_eq(
     (select count(*) from public.role_permissions rp
      join public.roles r on r.id = rp.role_id
      where r.key = 'data_operator'
        and rp.permission_id in (
-         select id from public.permissions where module not like 'data_upload.%'
+         select id from public.permissions
+         where module not like 'data_upload.%'
+           and module <> 'daily'
        ))::bigint, 0::bigint,
-    'veri operatörü yalnızca veri yükleme modüllerine erişir');
+    'genel veri operatörü hiçbir rapor modülü taşımaz');
 end $$;
 
 \echo ''
