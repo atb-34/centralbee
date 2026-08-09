@@ -1,0 +1,187 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+   CentralBee design tokens.
+
+   Neutral, dense, executive. Colour is information: the brass accent marks
+   "where you are", and the four semantic hues mean good / watch / bad / note.
+   Nothing else is coloured.
+--------------------------------------------------------------------------- */
+
+:root {
+  --radius: 0.375rem;
+
+  --background: #fbfbfc;
+  --foreground: #14171a;
+
+  --card: #ffffff;
+  --card-foreground: #14171a;
+
+  --popover: #ffffff;
+  --popover-foreground: #14171a;
+
+  /* Primary is the deep slate used for solid buttons, not the accent. */
+  --primary: #1b2a38;
+  --primary-foreground: #f8f9fa;
+
+  --secondary: #f1f3f4;
+  --secondary-foreground: #14171a;
+
+  --muted: #f1f3f4;
+  --muted-foreground: #62696f;
+
+  --accent: #f1f3f4;
+  --accent-foreground: #14171a;
+
+  /* Brand accent — active navigation, focus rings, key emphasis. Sparingly. */
+  --brand: #8a6220;
+  --brand-foreground: #ffffff;
+  --brand-subtle: #f4ecdd;
+
+  --destructive: #b33a30;
+  --destructive-foreground: #ffffff;
+
+  --border: #e3e6e8;
+  --input: #dde1e3;
+  --ring: #8a6220;
+
+  /* Semantic status — used with a label or icon, never colour alone. */
+  --positive: #17724a;
+  --positive-subtle: #e6f2ec;
+  --warning: #9a6510;
+  --warning-subtle: #f8efe0;
+  --critical: #b33a30;
+  --critical-subtle: #fbeae8;
+  --info: #2f5aa8;
+  --info-subtle: #e8eef8;
+
+  --sidebar: #f6f7f8;
+  --sidebar-foreground: #14171a;
+  --sidebar-border: #e3e6e8;
+}
+
+.dark {
+  --background: #0e0f11;
+  --foreground: #e9eaec;
+
+  --card: #16181b;
+  --card-foreground: #e9eaec;
+
+  --popover: #16181b;
+  --popover-foreground: #e9eaec;
+
+  --primary: #e9eaec;
+  --primary-foreground: #14171a;
+
+  --secondary: #1e2125;
+  --secondary-foreground: #e9eaec;
+
+  --muted: #1e2125;
+  --muted-foreground: #969ca3;
+
+  --accent: #1e2125;
+  --accent-foreground: #e9eaec;
+
+  --brand: #d9a44f;
+  --brand-foreground: #14171a;
+  --brand-subtle: #2b2317;
+
+  --destructive: #d9736a;
+  --destructive-foreground: #14171a;
+
+  --border: #292d32;
+  --input: #33383e;
+  --ring: #d9a44f;
+
+  --positive: #4fae81;
+  --positive-subtle: #14261e;
+  --warning: #d19b45;
+  --warning-subtle: #2a2214;
+  --critical: #d9736a;
+  --critical-subtle: #2b1917;
+  --info: #7c9cd8;
+  --info-subtle: #171e2b;
+
+  --sidebar: #121417;
+  --sidebar-foreground: #e9eaec;
+  --sidebar-border: #292d32;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-positive: var(--positive);
+  --color-positive-subtle: var(--positive-subtle);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-critical: var(--critical);
+  --color-critical-subtle: var(--critical-subtle);
+  --color-info: var(--info);
+  --color-info-subtle: var(--info-subtle);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Figures line up in columns across every table in the product. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Uppercase micro-label used for table headers and field captions. */
+  .label-caps {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+}
