@@ -21,6 +21,26 @@ import type {
 } from "@/types/database";
 
 /**
+ * The date input needs a year even though only day and month are stored.
+ * Shows the next occurrence so the field reads as a real, upcoming date.
+ */
+function anniversaryToDateInput(month: number | null, day: number | null): string {
+  if (month === null || day === null) return "";
+
+  const today = todayInAppZone();
+  const [year] = today.split("-").map(Number);
+
+  const on = (y: number) => {
+    const lastDay = new Date(Date.UTC(y, month, 0)).getUTCDate();
+    const clamped = Math.min(day, lastDay);
+    return `${y}-${String(month).padStart(2, "0")}-${String(clamped).padStart(2, "0")}`;
+  };
+
+  const thisYear = on(year);
+  return thisYear >= today ? thisYear : on(year + 1);
+}
+
+/**
  * Adds an obligation, or supersedes an existing one with a new version.
  *
  * When superseding, the type and stream are fixed: changing them would not
@@ -189,6 +209,22 @@ export function ObligationDialog({
             required
             defaultValue={existing?.current?.increase_rate ?? ""}
             className="tabular"
+          />
+        </Field>
+      ) : null}
+
+      {increaseRule !== "none" ? (
+        <Field
+          label="Zam tarihi"
+          hint="Her yıl aynı gün tekrar eder; yılı sonradan güncellemeniz gerekmez."
+        >
+          <Input
+            name="increase_on"
+            type="date"
+            defaultValue={anniversaryToDateInput(
+              existing?.current?.increase_month ?? null,
+              existing?.current?.increase_day ?? null
+            )}
           />
         </Field>
       ) : null}

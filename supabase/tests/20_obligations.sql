@@ -156,6 +156,49 @@ begin
 end $$;
 
 \echo ''
+\echo '── Zam tarihi ──────────────────────────────────────────────────'
+
+do $$
+declare
+  v_id       uuid;
+  v_rejected boolean := false;
+begin
+  -- Her yıl 1 Eylül'de %25 artan bir kira.
+  v_id := public.set_recurring_obligation(
+    'bbbbbbbb-0000-0000-0000-000000000003',
+    'rent', '', date '2025-09-01', 400000,
+    null, null, 5::smallint, 'Ev sahibi D',
+    'fixed_percent', 25, 9::smallint, 1::smallint
+  );
+
+  perform tests.assert_eq(
+    (select increase_month from public.recurring_obligations where id = v_id),
+    9::smallint,
+    'zam ayı kaydedildi');
+
+  perform tests.assert_eq(
+    (select increase_day from public.recurring_obligations where id = v_id),
+    1::smallint,
+    'zam günü kaydedildi');
+
+  -- Yarım tarih anlamsızdır: "eylülde artıyor" ama gün yok.
+  begin
+    insert into public.recurring_obligations (
+      institution_id, obligation_type, stream_name, amount_total,
+      effective_from, increase_month
+    ) values (
+      'bbbbbbbb-0000-0000-0000-000000000003', 'other', 'Yarım tarih', 1000,
+      date '2025-09-01', 9
+    );
+  exception when check_violation then
+    v_rejected := true;
+  end;
+
+  perform tests.assert_eq(v_rejected, true,
+    'ayı olup günü olmayan zam tarihi reddedilir');
+end $$;
+
+\echo ''
 \echo '── Kimler görebilir ────────────────────────────────────────────'
 
 -- Kurum müdürü: kendi kurumunu görür ama para verisini görmez.
@@ -190,7 +233,7 @@ declare
   v_denied boolean := false;
 begin
   perform tests.assert_eq(
-    (select count(*) from public.recurring_obligations)::bigint, 3::bigint,
+    (select count(*) from public.recurring_obligations)::bigint, 4::bigint,
     'üst yönetim tüm yükümlülükleri görür');
 
   begin

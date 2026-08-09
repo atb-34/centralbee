@@ -176,6 +176,54 @@ export function nextPaymentDate(
   return `${nextYear}-${String(nextMonth).padStart(2, "0")}-${String(inNextMonth).padStart(2, "0")}`;
 }
 
+/**
+ * The next date this obligation's amount goes up.
+ *
+ * The anniversary is stored as day + month because a rent increase recurs
+ * every year. Storing one full date would make the field expire the moment it
+ * passed, and someone would have to remember to edit it annually.
+ *
+ * Returns null when no increase date is set — an unknown date is left unknown
+ * rather than assumed.
+ */
+export function nextIncreaseDate(
+  obligation: Pick<RecurringObligationRow, "increase_month" | "increase_day">,
+  fromIso: string = todayInAppZone()
+): string | null {
+  const { increase_month: month, increase_day: day } = obligation;
+  if (month === null || day === null) return null;
+
+  const [year] = fromIso.split("-").map(Number);
+
+  const onYear = (y: number): string => {
+    const lastDay = new Date(Date.UTC(y, month, 0)).getUTCDate();
+    const clamped = Math.min(day, lastDay);
+    return `${y}-${String(month).padStart(2, "0")}-${String(clamped).padStart(2, "0")}`;
+  };
+
+  const thisYear = onYear(year);
+  return thisYear >= fromIso ? thisYear : onYear(year + 1);
+}
+
+/**
+ * What the amount becomes after the next increase.
+ *
+ * Only a fixed percentage can be projected. Inflation-linked and
+ * contract-specific rules depend on figures the system does not hold, so they
+ * return null instead of a made-up number.
+ */
+export function projectedAmountAfterIncrease(
+  obligation: Pick<
+    RecurringObligationRow,
+    "amount_total" | "increase_rule" | "increase_rate"
+  >
+): number | null {
+  if (obligation.increase_rule !== "fixed_percent") return null;
+  if (obligation.increase_rate === null) return null;
+
+  return Math.round(obligation.amount_total * (1 + obligation.increase_rate / 100));
+}
+
 /** How many days from today until an ISO date, in the app's timezone. */
 export function daysUntil(isoDate: string, fromIso: string = todayInAppZone()): number {
   const target = Date.parse(`${isoDate}T00:00:00Z`);

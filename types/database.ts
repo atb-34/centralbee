@@ -182,6 +182,9 @@ export type RecurringObligationRow = Timestamps & {
   effective_to: string | null;
   increase_rule: IncreaseRule;
   increase_rate: number | null;
+  /** Annual increase anniversary — recurs every year, so no year is stored. */
+  increase_month: number | null;
+  increase_day: number | null;
   notes: string | null;
 };
 
@@ -283,6 +286,8 @@ export type Database = {
         | "effective_to"
         | "increase_rule"
         | "increase_rate"
+        | "increase_month"
+        | "increase_day"
         | "notes"
         | "created_at"
         | "updated_at"
@@ -307,6 +312,8 @@ export type Database = {
           p_counterparty?: string | null;
           p_increase_rule?: IncreaseRule;
           p_increase_rate?: number | null;
+          p_increase_month?: number | null;
+          p_increase_day?: number | null;
           p_notes?: string | null;
         };
         Returns: string;

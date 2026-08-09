@@ -128,6 +128,21 @@ export async function saveObligationAction(
     }
   }
 
+  // The increase anniversary is entered as a full date because that is how a
+  // contract reads, but only day and month are kept — it recurs every year.
+  let increaseMonth: number | null = null;
+  let increaseDay: number | null = null;
+  const increaseOn = text(formData, "increase_on");
+
+  if (increaseRule !== "none" && increaseOn) {
+    const parsed = new Date(`${increaseOn}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) {
+      return { error: "Zam tarihi geçerli bir tarih olmalı." };
+    }
+    increaseMonth = parsed.getUTCMonth() + 1;
+    increaseDay = parsed.getUTCDate();
+  }
+
   const supabase = await createSupabaseServerClient();
 
   // A single RPC: closing the old version and opening the new one must either
@@ -144,6 +159,8 @@ export async function saveObligationAction(
     p_counterparty: optionalText(formData, "counterparty"),
     p_increase_rule: increaseRule,
     p_increase_rate: increaseRate,
+    p_increase_month: increaseMonth,
+    p_increase_day: increaseDay,
     p_notes: optionalText(formData, "notes"),
   });
 

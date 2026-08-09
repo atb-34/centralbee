@@ -9,8 +9,11 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   INCREASE_RULE_LABELS,
   OBLIGATION_LABELS,
+  daysUntil,
   groupIntoStreams,
   monthlyFixedCost,
+  nextIncreaseDate,
+  projectedAmountAfterIncrease,
   resolvePaymentDay,
   salarySplit,
   upcomingPayments,
@@ -182,6 +185,41 @@ export function ObligationsPanel({
                         {formatMoney(current.amount_cash)}
                       </p>
                     ) : null}
+
+                    {(() => {
+                      if (!current) return null;
+                      const increaseOn = nextIncreaseDate(current);
+                      if (!increaseOn) return null;
+
+                      const projected = projectedAmountAfterIncrease(current);
+                      const away = daysUntil(increaseOn);
+
+                      return (
+                        <p className="text-xs">
+                          <span
+                            className={away <= 30 ? "text-warning" : "text-muted-foreground"}
+                          >
+                            Sonraki zam {formatDate(increaseOn)}
+                          </span>
+                          {projected !== null ? (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              · {formatMoney(current.amount_total)} →{" "}
+                              <span className="tabular font-medium text-foreground">
+                                {formatMoney(projected)}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              · tutar {INCREASE_RULE_LABELS[
+                                current.increase_rule
+                              ].toLocaleLowerCase("tr")} belirlenecek
+                            </span>
+                          )}
+                        </p>
+                      );
+                    })()}
                   </div>
 
                   <div className="flex shrink-0 items-center gap-3">

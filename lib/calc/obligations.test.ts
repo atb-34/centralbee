@@ -4,7 +4,9 @@ import {
   daysUntil,
   groupIntoStreams,
   monthlyFixedCost,
+  nextIncreaseDate,
   nextPaymentDate,
+  projectedAmountAfterIncrease,
   resolvePaymentDay,
   salarySplit,
   upcomingPayments,
@@ -30,6 +32,8 @@ function obligation(
     effective_to: null,
     increase_rule: "none",
     increase_rate: null,
+    increase_month: null,
+    increase_day: null,
     notes: null,
     created_at: "2024-01-01T00:00:00Z",
     updated_at: "2024-01-01T00:00:00Z",
@@ -209,6 +213,85 @@ describe("salarySplit", () => {
       cash: 300_000,
       total: 1_000_000,
     });
+  });
+});
+
+describe("nextIncreaseDate", () => {
+  // Stored as day + month, so the field does not expire the year it passes.
+  const septemberFirst = { increase_month: 9, increase_day: 1 };
+
+  it("returns this year's date when it has not passed", () => {
+    expect(nextIncreaseDate(septemberFirst, "2026-08-09")).toBe("2026-09-01");
+  });
+
+  it("returns the anniversary itself on the day", () => {
+    expect(nextIncreaseDate(septemberFirst, "2026-09-01")).toBe("2026-09-01");
+  });
+
+  it("rolls to next year once the date has passed", () => {
+    expect(nextIncreaseDate(septemberFirst, "2026-09-02")).toBe("2027-09-01");
+  });
+
+  it("clamps 29 February to the 28th in a common year", () => {
+    expect(
+      nextIncreaseDate({ increase_month: 2, increase_day: 29 }, "2027-01-01")
+    ).toBe("2027-02-28");
+  });
+
+  it("keeps 29 February in a leap year", () => {
+    expect(
+      nextIncreaseDate({ increase_month: 2, increase_day: 29 }, "2028-01-01")
+    ).toBe("2028-02-29");
+  });
+
+  it("returns null when no increase date is set", () => {
+    expect(
+      nextIncreaseDate({ increase_month: null, increase_day: null }, "2026-08-09")
+    ).toBeNull();
+  });
+});
+
+describe("projectedAmountAfterIncrease", () => {
+  it("applies a fixed percentage", () => {
+    expect(
+      projectedAmountAfterIncrease({
+        amount_total: 650_000,
+        increase_rule: "fixed_percent",
+        increase_rate: 25,
+      })
+    ).toBe(812_500);
+  });
+
+  // Guessing at an inflation figure the system does not hold would put a
+  // fabricated number into the cash forecast.
+  it("returns null for inflation-linked increases", () => {
+    expect(
+      projectedAmountAfterIncrease({
+        amount_total: 650_000,
+        increase_rule: "inflation",
+        increase_rate: null,
+      })
+    ).toBeNull();
+  });
+
+  it("returns null when the rate is missing", () => {
+    expect(
+      projectedAmountAfterIncrease({
+        amount_total: 650_000,
+        increase_rule: "fixed_percent",
+        increase_rate: null,
+      })
+    ).toBeNull();
+  });
+
+  it("returns null when there is no increase", () => {
+    expect(
+      projectedAmountAfterIncrease({
+        amount_total: 650_000,
+        increase_rule: "none",
+        increase_rate: null,
+      })
+    ).toBeNull();
   });
 });
 
