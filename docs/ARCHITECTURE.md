@@ -144,8 +144,10 @@ transactions     enrollments     targets          obligations   ...
 | Alan | Tablolar | Faz |
 | --- | --- | --- |
 | Kimlik ve yetki | `profiles` `roles` `permissions` `role_permissions` `user_roles` `user_permission_overrides` `user_institution_access` | 1 ✅ |
-| Kuruluş yapısı | `companies` `institutions` `people` `education_periods` | 1 ✅ |
+| Kuruluş yapısı | `companies` `institutions` `education_periods` | 1 ✅ |
+| Yükümlülükler | `recurring_obligations` (sürümlü) | 2 ✅ |
 | Platform | `data_import_batches` `data_import_errors` `audit_logs` | 1 (kısmi) |
+| Kişiler | `people` | 3 (gerçekten kullanılacağı faz) |
 | Performans | `sales_enrollments` `performance_targets` `crm_daily` | 5 |
 | Finans | `financial_transactions` `financial_categories` `financial_subcategories` `bank_accounts` `cash_position_snapshots` `cash_position_items` | 6 |
 | Nakit tahmini | `pos_receivables` `pos_settlements` `checks` `scheduled_payments` `recurring_obligations` `current_payables` `forecast_assumptions` | 2, 7 |
@@ -158,6 +160,16 @@ transactions     enrollments     targets          obligations   ...
 **Geçmiş asla ezilmez.** Kira 500 bin TL'den 650 bin TL'ye çıktığında eski
 değer silinmez; yükümlülükler `effective_from` / `effective_to` ile sürümlenir.
 Aynı kural maaş, SGK ve diğer düzenli ödemeler için de geçerlidir.
+
+Bu, kurala uyulmasını *umut eden* bir tasarım değil. `recurring_obligations`
+üzerindeki `EXCLUDE` kısıtı aynı yükümlülüğün iki sürümünün aynı günü
+kapsamasına izin vermez, ve sürüm geçişi `set_recurring_obligation` fonksiyonuyla
+tek işlemde yapılır: eski sürümün kapanması ile yenisinin açılması ya birlikte
+olur ya hiç olmaz. Uygulama katmanı bu iki adımı ayrı ayrı yapamaz.
+
+Aynı kurumda aynı türden birden fazla yükümlülük olabilir — iki bina, iki kira
+sözleşmesi. Bunları `stream_name` ayırır; sürüm çakışma kısıtı akış başına
+işler.
 
 **Eğitim dönemleri çakışamaz.** `education_periods` üzerinde bir `EXCLUDE`
 kısıtı vardır: iki dönem aynı günü kapsayamaz. Aksi halde bir işlem tarihi iki

@@ -7,6 +7,8 @@ import type { PermissionAction } from "@/types/database";
 export const MODULES = {
   daily: "daily",
   institutions: "institutions",
+  /** Money data on an institution: salary, rent, SGK. Deliberately separate. */
+  institutionObligations: "institutions.obligations",
   operations: "operations",
   reportsPerformance: "reports.performance",
   reportsRanking: "reports.performance.ranking",

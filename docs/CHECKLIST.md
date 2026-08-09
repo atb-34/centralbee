@@ -38,15 +38,31 @@ Mimari kararlar için [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 Yükleme menüde yer almıyor. Boş sayfaya götüren bir menü bağlantısı, olmayan
 bağlantıdan kötüdür; bu modüller kendi fazlarında eklenecek.
 
-## Faz 2 — Kurumlar
+## Faz 2 — Kurumlar ✅
 
-- [ ] Kurum profil sayfası ve sekmeleri (Genel Bakış, Finansal, Yükümlülükler…)
-- [ ] `people` tablosu ve kurum müdürü ilişkisi
-- [ ] `recurring_obligations`: maaş (banka/nakit), kira, SGK, vergi, sigorta
-- [ ] Tarih sürümleme (`effective_from` / `effective_to`) — geçmiş değerler korunur
-- [ ] Şirket varsayılanları ve kurum bazında geçersiz kılma
-- [ ] Kira kuralları: tutar, ödeme günü, karşı taraf, sözleşme süresi, artış kuralı
-- [ ] Ödeme takvimlerinin oluşturulması
+- [x] Kurum profil sayfası ve sekmeleri (Genel Bakış, Yükümlülükler)
+- [x] `recurring_obligations`: maaş (banka/nakit), kira, SGK, vergi, sigorta
+- [x] Tarih sürümleme (`effective_from` / `effective_to`) — geçmiş değerler korunur
+- [x] Aynı türden birden fazla yükümlülük (iki ayrı kira sözleşmesi) `stream_name` ile
+- [x] Çakışmayan tarih aralığı kısıtı — veritabanı seviyesinde
+- [x] Atomik sürüm geçişi (`set_recurring_obligation`): eski kapanır, yeni açılır
+- [x] Şirket varsayılan maaş günü ve kurum bazında geçersiz kılma
+- [x] Kira kuralları: tutar, ödeme günü, karşı taraf, artış kuralı, not
+- [x] Maaşta banka + nakit = toplam kısıtı
+- [x] Yaklaşan ödemeler (ay sonu taşması doğru ele alınır: 31'i olmayan ay)
+- [x] Ayrı izin modülü `institutions.obligations` — para verisi `institutions:view`
+      ile açılmaz
+- [x] `lib/calc/obligations.ts` ve 26 birim testi (`npm run test`)
+- [x] 17 veritabanı iddiası (`supabase/tests/20_obligations.sql`)
+
+**Bu fazda bilerek yapılmayanlar:**
+
+- `people` tablosu **ertelendi.** Yazacak ekranı olmayan tablo teslim sayılmaz.
+  Faz 3'te operasyonların "sorumlu kişi" alanı ve Faz 6'da finansal hareketlerin
+  karşı taraf boyutu bu tabloyu gerçekten kullanacak; o zaman eklenecek.
+  Şimdilik karşı taraf serbest metin.
+- Kurum profilinde Performans, Finansal, Operasyon, Bütçe, Reklam ve Ziyaretler
+  sekmeleri yok — kendi fazlarıyla gelecekler.
 
 ## Faz 3 — Operasyon
 
@@ -129,11 +145,12 @@ bağlantıdan kötüdür; bu modüller kendi fazlarında eklenecek.
 ## Her fazda geçerli
 
 - [ ] Şema değişikliği → yeni göç dosyası. Supabase panelinden elle değişiklik yok.
-- [ ] Yeni hesap → `lib/calc/` altına. Sayfa içinde hesap yapılmaz.
+- [ ] Yeni hesap → `lib/calc/` altına, birim testiyle birlikte. Sayfa içinde
+      hesap yapılmaz.
 - [ ] Yeni tablo → RLS açık ve politikaları yazılmış olarak gelir.
 - [ ] Yeni RLS politikası → `supabase/tests/10_rls.sql` içine iddiası yazılır.
       Politika test edilmemişse yazılmamış sayılır.
 - [ ] Önemli değişiklik → denetim kaydı.
 - [ ] Göç eklendiğinde → `npm run db:bundle` ile birleşik betik tazelenir.
-- [ ] Faz sonunda: `npm run check` (tip kontrolü + lint + derleme) ve
-      `npm run db:test` temiz.
+- [ ] Faz sonunda: `npm run check` (tip kontrolü + lint + birim testleri +
+      derleme) ve `npm run db:test` temiz.
