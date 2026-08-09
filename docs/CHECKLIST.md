@@ -30,6 +30,9 @@ Mimari kararlar için [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 - [x] Yönetim: denetim kaydı
 - [x] Ayarlar: hesap, kurum erişimi, etkin yetki listesi
 - [x] Günlük: kurulum durumu ve kuruluş özeti (Faz 8'de sabah brifingine dönüşecek)
+- [x] Veritabanı test düzeneği (`npm run db:test`) — 22 güvenlik iddiası, gerçek
+      PostgreSQL üzerinde doğrulandı
+- [x] Tek seferde yapıştırılabilir kurulum betiği (`supabase/bundle.sql`)
 
 **Bu fazda bilerek yapılmayanlar:** Raporlar, Operasyon, Bütçe, Reklam ve Veri
 Yükleme menüde yer almıyor. Boş sayfaya götüren bir menü bağlantısı, olmayan
@@ -128,5 +131,9 @@ bağlantıdan kötüdür; bu modüller kendi fazlarında eklenecek.
 - [ ] Şema değişikliği → yeni göç dosyası. Supabase panelinden elle değişiklik yok.
 - [ ] Yeni hesap → `lib/calc/` altına. Sayfa içinde hesap yapılmaz.
 - [ ] Yeni tablo → RLS açık ve politikaları yazılmış olarak gelir.
+- [ ] Yeni RLS politikası → `supabase/tests/10_rls.sql` içine iddiası yazılır.
+      Politika test edilmemişse yazılmamış sayılır.
 - [ ] Önemli değişiklik → denetim kaydı.
-- [ ] Faz sonunda: `npm run check` (tip kontrolü + lint + derleme) temiz.
+- [ ] Göç eklendiğinde → `npm run db:bundle` ile birleşik betik tazelenir.
+- [ ] Faz sonunda: `npm run check` (tip kontrolü + lint + derleme) ve
+      `npm run db:test` temiz.

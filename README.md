@@ -20,24 +20,19 @@ Teknik bilgi gerektirmeyen, adım adım rehber. Baştan sona yaklaşık 15 dakik
 
 1. [supabase.com](https://supabase.com) → projenizi açın.
 2. Sol menüden **SQL Editor** → sağ üstten **New query**.
-3. Bu depodaki `supabase/migrations/` klasöründeki dosyaları **sırayla** açın.
-   Her birinin içeriğini kopyalayıp SQL Editor'e yapıştırın ve **Run** deyin.
+3. Bu depodaki [`supabase/bundle.sql`](./supabase/bundle.sql) dosyasını açın,
+   **tamamını** kopyalayıp SQL Editor'e yapıştırın ve **Run** deyin.
 
-   Sıra önemlidir, numaraya göre gidin:
+Tek seferde çalışır. Dosya bir işlem (transaction) içindedir: ya her şey
+uygulanır ya da hiçbiri — yarım kalmış bir veritabanıyla baş başa kalmazsınız.
 
-   ```
-   0001_foundation.sql
-   0002_organisation.sql
-   0003_identity_and_access.sql
-   0004_audit_log.sql
-   0005_rls.sql
-   0006_permission_catalogue.sql
-   0007_education_periods_seed.sql
-   ```
+Yeşil bir "Success" mesajı görmelisiniz. Sonrasında Supabase'in **Table
+Editor** bölümünde 11 tablo görünecek.
 
-   Her çalıştırmadan sonra yeşil bir "Success" mesajı görmelisiniz. Kırmızı bir
-   hata görürseniz durun — sonraki dosyaya geçmeyin.
-
+> `bundle.sql`, `supabase/migrations/` altındaki 7 göç dosyasından üretilir.
+> Şemanın tek kaynağı o göç dosyalarıdır; birleşik dosya yalnızca ilk kurulum
+> kolaylığıdır ve elle düzenlenmez (`npm run db:bundle` ile yeniden üretilir).
+>
 > Supabase CLI kullanmayı tercih ederseniz: `supabase link` ardından
 > `supabase db push` aynı işi yapar.
 
@@ -112,6 +107,27 @@ Kullanılabilir komutlar:
 | `npm run typecheck` | TypeScript kontrolü |
 | `npm run lint` | Kod denetimi |
 | `npm run check` | Üçünü birden çalıştırır — her fazın sonunda temiz olmalı |
+| `npm run db:test` | Göçleri geçici bir veritabanına uygular ve güvenlik kurallarını sınar |
+| `npm run db:bundle` | `supabase/bundle.sql` dosyasını yeniden üretir |
+
+### Veritabanı testleri
+
+`npm run db:test` sıfırdan bir PostgreSQL kümesi kurar, tüm göçleri uygular ve
+ürünün dayandığı güvenlik iddialarını tek tek sınar — örneğin:
+
+- Kurum müdürü yalnızca kendi kurumunu görür; kurum numarasını değiştirerek
+  başkasının verisine ulaşamaz.
+- Veri operatörü finansal veri **yükleyebilir** ama finansal raporu
+  **göremez**.
+- Devre dışı bırakılmış bir hesap, rolü ne olursa olsun hiçbir yetki taşımaz.
+- Denetim kaydı silinemez.
+- Çakışan eğitim dönemi veritabanı tarafından reddedilir.
+
+Bir iddia bozulursa komut hata verir. Gerçek Supabase projesine hiç
+dokunulmaz; küme geçici dizinde kurulur ve iş bitince silinir.
+
+> PostgreSQL sunucu araçları (`initdb`, `pg_ctl`, `psql`) gerekir. Farklı bir
+> yerdeyseler: `PGBIN=/usr/lib/postgresql/16/bin npm run db:test`
 
 ### Şema değiştirmek
 
