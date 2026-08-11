@@ -64,4 +64,11 @@ done
 
 echo "▸ Güvenlik testleri…"
 # Each assertion reports itself with RAISE NOTICE, so notices must come through.
-PGOPTIONS='--client-min-messages=notice' $PSQL -q -f "$ROOT/supabase/tests/10_rls.sql"
+# Test files share one session-scoped database and run in filename order; later
+# files may build on fixtures created by earlier ones.
+for file in "$ROOT"/supabase/tests/[0-9]*.sql; do
+  case "$(basename "$file")" in
+    00_*) continue ;;  # prelude, already applied
+  esac
+  PGOPTIONS='--client-min-messages=notice' $PSQL -q -f "$file"
+done

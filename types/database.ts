@@ -22,6 +22,21 @@ export type PermissionAction =
 export type InstitutionScope = "all" | "specific";
 export type InstitutionStatus = "active" | "paused" | "closed";
 
+export type ObligationType =
+  | "salary"
+  | "rent"
+  | "sgk"
+  | "tax"
+  | "insurance"
+  | "other";
+
+export type IncreaseRule =
+  | "none"
+  | "fixed_percent"
+  | "inflation"
+  | "contract"
+  | "custom";
+
 export type Json =
   | string
   | number
@@ -140,6 +155,39 @@ export type UserInstitutionAccessRow = {
   created_at: string;
 };
 
+/**
+ * One version of one recurring obligation.
+ *
+ * Rows are never updated in place when an amount changes — a new row is added
+ * and the previous one gets its `effective_to` closed. `effective_to === null`
+ * means "still in force".
+ */
+export type RecurringObligationRow = Timestamps & {
+  id: string;
+  institution_id: string;
+  obligation_type: ObligationType;
+  /** Distinguishes a second obligation of the same type (two rent contracts). */
+  stream_name: string;
+  counterparty: string | null;
+  /**
+   * numeric(14,2). Arrives as a JSON number; the range caps at ~1e12, well
+   * inside the integer-exact range of a double once counted in kuruş, so no
+   * precision is lost on the way through.
+   */
+  amount_total: number;
+  amount_bank: number | null;
+  amount_cash: number | null;
+  payment_day: number | null;
+  effective_from: string;
+  effective_to: string | null;
+  increase_rule: IncreaseRule;
+  increase_rate: number | null;
+  /** Annual increase anniversary — recurs every year, so no year is stored. */
+  increase_month: number | null;
+  increase_day: number | null;
+  notes: string | null;
+};
+
 export type AuditLogRow = {
   id: number;
   actor_id: string | null;
@@ -227,13 +275,56 @@ export type Database = {
         | "ip_address"
         | "created_at"
       >;
+      recurring_obligations: Table<
+        RecurringObligationRow,
+        | "id"
+        | "stream_name"
+        | "counterparty"
+        | "amount_bank"
+        | "amount_cash"
+        | "payment_day"
+        | "effective_to"
+        | "increase_rule"
+        | "increase_rate"
+        | "increase_month"
+        | "increase_day"
+        | "notes"
+        | "created_at"
+        | "updated_at"
+      >;
     };
     Views: Record<never, never>;
-    Functions: Record<never, never>;
+    Functions: {
+      /**
+       * Closes the current version and opens a new one, atomically.
+       * Returns the new version's id.
+       */
+      set_recurring_obligation: {
+        Args: {
+          p_institution_id: string;
+          p_obligation_type: ObligationType;
+          p_stream_name: string;
+          p_effective_from: string;
+          p_amount_total: number;
+          p_amount_bank?: number | null;
+          p_amount_cash?: number | null;
+          p_payment_day?: number | null;
+          p_counterparty?: string | null;
+          p_increase_rule?: IncreaseRule;
+          p_increase_rate?: number | null;
+          p_increase_month?: number | null;
+          p_increase_day?: number | null;
+          p_notes?: string | null;
+        };
+        Returns: string;
+      };
+    };
     Enums: {
       permission_action: PermissionAction;
       institution_scope: InstitutionScope;
       institution_status: InstitutionStatus;
+      obligation_type: ObligationType;
+      increase_rule: IncreaseRule;
     };
     CompositeTypes: Record<never, never>;
   };

@@ -113,12 +113,15 @@ export default async function InstitutionsPage() {
                 return (
                   <TableRow key={row.id}>
                     <TableCell>
-                      <div className="flex flex-col">
+                      <Link
+                        href={`/institutions/${row.id}`}
+                        className="flex flex-col transition-colors hover:text-brand"
+                      >
                         <span className="font-medium">{row.name}</span>
                         <span className="font-mono text-xs text-muted-foreground">
                           {row.code}
                         </span>
-                      </div>
+                      </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {company?.name ?? "—"}

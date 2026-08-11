@@ -39,3 +39,30 @@ as $$
 $$;
 
 grant usage on schema public to anon, authenticated, service_role;
+
+-- -----------------------------------------------------------------------------
+-- Assertion helper.
+--
+-- Lives in its own schema rather than pg_temp: each test file runs in a fresh
+-- psql session, and a temporary function would vanish between them.
+-- -----------------------------------------------------------------------------
+
+create schema if not exists tests;
+grant usage on schema tests to authenticated;
+
+create or replace function tests.assert_eq(
+  actual anyelement,
+  expected anyelement,
+  label text
+) returns void
+language plpgsql
+as $$
+begin
+  if actual is distinct from expected then
+    raise exception 'BAŞARISIZ: % — beklenen %, gelen %', label, expected, actual;
+  end if;
+  raise notice 'ok  %', label;
+end;
+$$;
+
+grant execute on function tests.assert_eq(anyelement, anyelement, text) to authenticated;

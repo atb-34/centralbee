@@ -1,7 +1,7 @@
 -- =============================================================================
 -- CentralBee — birleşik kurulum betiği   (OTOMATİK ÜRETİLDİ — ELLE DÜZENLEMEYİN)
 --
--- `supabase/migrations/` altındaki 8 dosyanın sırayla birleştirilmiş halidir.
+-- `supabase/migrations/` altındaki 11 dosyanın sırayla birleştirilmiş halidir.
 -- Yeniden üretmek için:  npm run db:bundle
 --
 -- KULLANIM
@@ -1030,6 +1030,888 @@ from public.roles r cross join public.permissions p
 where r.is_system
   and p.key = 'daily:view'
 on conflict do nothing;
+
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- ▼ 0009_recurring_obligations.sql
+-- ──────────────────────────────────────────────────────────────────────────
+
+-- =============================================================================
+-- 0009 — Düzenli yükümlülükler (maaş, kira, SGK, vergi, sigorta).
+--
+-- Bu tablonun tek ve en önemli kuralı: GEÇMİŞ ASLA EZİLMEZ.
+--
+-- Kira 500.000 ₺'den 650.000 ₺'ye çıktığında eski satır güncellenmez; eski
+-- sürüm kapatılır ve yeni bir sürüm açılır. Aksi halde geçen yılın nakit akışı
+-- raporu bugünün kirasıyla hesaplanır ve geçmiş sessizce bozulur.
+--
+-- Bir kurumun aynı türden birden fazla yükümlülüğü olabilir (iki ayrı bina,
+-- iki ayrı kira sözleşmesi). Bunları ayırt eden `stream_name` alanıdır. Aynı
+-- akış içinde tarih aralıkları çakışamaz — veritabanı buna izin vermez.
+-- =============================================================================
+
+-- Aynı akışın iki sürümünün çakışmadığını doğrulamak için, eşitlik
+-- sütunlarıyla tarih aralığını aynı GiST indeksinde birleştirmemiz gerekiyor.
+create extension if not exists btree_gist;
+
+do $$ begin
+  create type app.obligation_type as enum (
+    'salary', 'rent', 'sgk', 'tax', 'insurance', 'other'
+  );
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type app.increase_rule as enum (
+    'none', 'fixed_percent', 'inflation', 'contract', 'custom'
+  );
+exception when duplicate_object then null; end $$;
+
+create table if not exists public.recurring_obligations (
+  id               uuid primary key default gen_random_uuid(),
+  institution_id   uuid not null references public.institutions(id) on delete cascade,
+  obligation_type  app.obligation_type not null,
+
+  -- Aynı türden ikinci bir yükümlülüğü ayırt eder ("Ana Bina", "Şube").
+  -- Tek akış varsa boş bırakılır.
+  stream_name      text not null default '',
+
+  counterparty     text,
+
+  amount_total     numeric(14, 2) not null,
+  -- Yalnızca maaşta anlamlı: bankadan ve elden ödenen kısımlar.
+  amount_bank      numeric(14, 2),
+  amount_cash      numeric(14, 2),
+
+  -- Ayın kaçında ödenir. Boşsa şirket varsayılanı geçerlidir.
+  payment_day      smallint,
+
+  effective_from   date not null,
+  effective_to     date,
+
+  increase_rule    app.increase_rule not null default 'none',
+  increase_rate    numeric(6, 3),
+
+  notes            text,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+
+  constraint recurring_obligations_amount_positive
+    check (amount_total >= 0),
+
+  constraint recurring_obligations_payment_day_range
+    check (payment_day is null or payment_day between 1 and 31),
+
+  constraint recurring_obligations_period_order
+    check (effective_to is null or effective_to >= effective_from),
+
+  -- Maaşın banka ve nakit kısımları toplamı, toplam maaşı vermek zorundadır.
+  -- Tutmazsa nakit tahmini yanlış çıkar.
+  constraint recurring_obligations_salary_split
+    check (
+      obligation_type <> 'salary'
+      or (amount_bank is null and amount_cash is null)
+      or coalesce(amount_bank, 0) + coalesce(amount_cash, 0) = amount_total
+    ),
+
+  constraint recurring_obligations_increase_rate
+    check (
+      increase_rule <> 'fixed_percent' or increase_rate is not null
+    ),
+
+  -- Aynı akışın iki sürümü aynı günü kapsayamaz.
+  -- (btree_gist enum türlerini doğrudan destekler; metne çevirmek gerekmez —
+  --  zaten çeviremezdik, enum→text dönüşümü indeks ifadesi için yeterince
+  --  değişmez sayılmıyor.)
+  constraint recurring_obligations_no_overlap
+    exclude using gist (
+      institution_id with =,
+      obligation_type with =,
+      stream_name with =,
+      daterange(effective_from, effective_to, '[]') with &&
+    )
+);
+
+comment on table public.recurring_obligations is
+  'Sürümlenmiş düzenli yükümlülükler. Güncelleme değil, yeni sürüm açılır.';
+comment on column public.recurring_obligations.stream_name is
+  'Aynı türden ikinci yükümlülüğü ayırır (iki kira sözleşmesi gibi). Tek ise boş.';
+comment on column public.recurring_obligations.effective_to is
+  'NULL = hâlâ yürürlükte.';
+
+create index if not exists recurring_obligations_institution_idx
+  on public.recurring_obligations (institution_id, obligation_type);
+
+create index if not exists recurring_obligations_current_idx
+  on public.recurring_obligations (institution_id)
+  where effective_to is null;
+
+create trigger recurring_obligations_touch_updated_at
+  before update on public.recurring_obligations
+  for each row execute function app.touch_updated_at();
+
+-- -----------------------------------------------------------------------------
+-- Belirli bir tarihte yürürlükte olan sürüm
+-- -----------------------------------------------------------------------------
+
+create or replace function app.obligation_at(
+  p_institution_id  uuid,
+  p_obligation_type app.obligation_type,
+  p_stream_name     text,
+  p_date            date
+)
+returns uuid
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select id
+  from public.recurring_obligations
+  where institution_id = p_institution_id
+    and obligation_type = p_obligation_type
+    and stream_name = coalesce(p_stream_name, '')
+    and p_date >= effective_from
+    and (effective_to is null or p_date <= effective_to)
+  limit 1;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Yeni sürüm açma — tek işlemde, atomik
+--
+-- Önceki sürümü kapatıp yenisini eklemek iki ayrı adımdır. Uygulama katmanından
+-- iki ayrı istek olarak yapılırsa, ikincisi başarısız olduğunda kurum tutarsız
+-- durumda kalır: eski sürüm kapanmış, yenisi hiç açılmamıştır.
+--
+-- SECURITY INVOKER: RLS çağıran kullanıcı için değerlendirilir.
+-- -----------------------------------------------------------------------------
+
+create or replace function public.set_recurring_obligation(
+  p_institution_id  uuid,
+  p_obligation_type app.obligation_type,
+  p_stream_name     text,
+  p_effective_from  date,
+  p_amount_total    numeric,
+  p_amount_bank     numeric default null,
+  p_amount_cash     numeric default null,
+  p_payment_day     smallint default null,
+  p_counterparty    text default null,
+  p_increase_rule   app.increase_rule default 'none',
+  p_increase_rate   numeric default null,
+  p_notes           text default null
+)
+returns uuid
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  v_stream    text := coalesce(p_stream_name, '');
+  v_new_id    uuid;
+  v_has_prior boolean;
+begin
+  select exists (
+    select 1 from public.recurring_obligations
+    where institution_id = p_institution_id
+      and obligation_type = p_obligation_type
+      and stream_name = v_stream
+  ) into v_has_prior;
+
+  -- Mevcut bir akışın üzerine sürüm eklemek düzenlemedir; ilk sürümü açmak
+  -- oluşturmadır. İkisi ayrı yetki olabilir.
+  if v_has_prior then
+    if not app.has_permission('institutions.obligations:edit') then
+      raise exception 'Bu yükümlülüğü değiştirme yetkiniz yok'
+        using errcode = 'insufficient_privilege';
+    end if;
+  else
+    if not app.has_permission('institutions.obligations:create') then
+      raise exception 'Yükümlülük oluşturma yetkiniz yok'
+        using errcode = 'insufficient_privilege';
+    end if;
+  end if;
+
+  -- Aynı gün başlayan bir sürüm zaten varsa, çakışma kısıtına takılmadan önce
+  -- anlaşılır bir hata ver.
+  if exists (
+    select 1 from public.recurring_obligations
+    where institution_id = p_institution_id
+      and obligation_type = p_obligation_type
+      and stream_name = v_stream
+      and effective_from = p_effective_from
+  ) then
+    raise exception 'Bu tarihte başlayan bir sürüm zaten var: %', p_effective_from
+      using errcode = 'unique_violation';
+  end if;
+
+  -- Geriye dönük sürüm eklemek, sonraki sürümlerin hepsini yeniden
+  -- düzenlemeyi gerektirir. Sessizce yanlış yapmaktansa reddet.
+  if exists (
+    select 1 from public.recurring_obligations
+    where institution_id = p_institution_id
+      and obligation_type = p_obligation_type
+      and stream_name = v_stream
+      and effective_from > p_effective_from
+  ) then
+    raise exception
+      'Daha ileri tarihli bir sürüm var. Yeni sürüm ondan sonra başlamalı.'
+      using errcode = 'check_violation';
+  end if;
+
+  -- Yeni sürümün başladığı günden itibaren geçerli olan eski sürüm kapanır.
+  update public.recurring_obligations
+  set effective_to = p_effective_from - 1
+  where institution_id = p_institution_id
+    and obligation_type = p_obligation_type
+    and stream_name = v_stream
+    and effective_from < p_effective_from
+    and (effective_to is null or effective_to >= p_effective_from);
+
+  insert into public.recurring_obligations (
+    institution_id, obligation_type, stream_name, counterparty,
+    amount_total, amount_bank, amount_cash, payment_day,
+    effective_from, effective_to, increase_rule, increase_rate, notes
+  ) values (
+    p_institution_id, p_obligation_type, v_stream, p_counterparty,
+    p_amount_total, p_amount_bank, p_amount_cash, p_payment_day,
+    p_effective_from, null, p_increase_rule, p_increase_rate, p_notes
+  )
+  returning id into v_new_id;
+
+  return v_new_id;
+end;
+$$;
+
+comment on function public.set_recurring_obligation is
+  'Eski sürümü kapatır ve yenisini açar. İkisi tek işlemde gerçekleşir.';
+
+grant execute on function app.obligation_at(uuid, app.obligation_type, text, date)
+  to authenticated;
+grant execute on function public.set_recurring_obligation(
+  uuid, app.obligation_type, text, date, numeric, numeric, numeric,
+  smallint, text, app.increase_rule, numeric, text
+) to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- İzinler
+--
+-- Yükümlülükler para verisidir. `institutions:view` yetkisi olan herkesin maaş
+-- ve kira rakamlarını görmesi doğru olmaz, bu yüzden ayrı bir modül.
+-- -----------------------------------------------------------------------------
+
+with modules (module, label, sort_order, actions) as (
+  values
+    ('institutions.obligations', 'Kurum Yükümlülükleri', 21,
+     array['view', 'create', 'edit', 'delete', 'export'])
+)
+insert into public.permissions (key, module, action, label, sort_order)
+select m.module || ':' || a, m.module, a::app.permission_action, m.label, m.sort_order
+from modules m
+cross join unnest(m.actions) as a
+on conflict (key) do nothing;
+
+-- Süper yönetici her yetkiyi taşır.
+insert into public.role_permissions (role_id, permission_id)
+select r.id, p.id
+from public.roles r cross join public.permissions p
+where r.key = 'super_admin' and p.module = 'institutions.obligations'
+on conflict do nothing;
+
+insert into public.role_permissions (role_id, permission_id)
+select r.id, p.id
+from public.roles r cross join public.permissions p
+where r.key = 'admin' and p.module = 'institutions.obligations'
+on conflict do nothing;
+
+-- Finans yükümlülükleri yönetir: nakit tahmininin girdisi bunlardır.
+insert into public.role_permissions (role_id, permission_id)
+select r.id, p.id
+from public.roles r cross join public.permissions p
+where r.key = 'finance'
+  and p.module = 'institutions.obligations'
+  and p.action in ('view', 'create', 'edit', 'export')
+on conflict do nothing;
+
+-- Üst yönetim görür, değiştirmez.
+insert into public.role_permissions (role_id, permission_id)
+select r.id, p.id
+from public.roles r cross join public.permissions p
+where r.key = 'executive'
+  and p.module = 'institutions.obligations'
+  and p.action in ('view', 'export')
+on conflict do nothing;
+
+-- Kurum müdürüne varsayılan olarak VERİLMEZ. İhtiyaç duyulursa kullanıcı
+-- bazında istisna ile tanımlanır — kendi kurumunun maaş toplamını görmesi
+-- gereken bir müdür olabilir, ama bu bir karardır, varsayılan değil.
+
+-- -----------------------------------------------------------------------------
+-- RLS
+-- -----------------------------------------------------------------------------
+
+alter table public.recurring_obligations enable row level security;
+
+create policy recurring_obligations_select on public.recurring_obligations
+  for select to authenticated
+  using (
+    app.has_permission('institutions.obligations:view')
+    and app.can_access_institution(institution_id)
+  );
+
+-- Bir sürüm eklemek, akış yeniyse oluşturma, mevcutsa düzenlemedir. Hangisinin
+-- gerektiğine `set_recurring_obligation` karar verir; politika ikisini de kabul
+-- eder ki fonksiyon kendi kararını uygulayabilsin.
+create policy recurring_obligations_insert on public.recurring_obligations
+  for insert to authenticated
+  with check (
+    (
+      app.has_permission('institutions.obligations:create')
+      or app.has_permission('institutions.obligations:edit')
+    )
+    and app.can_access_institution(institution_id)
+  );
+
+create policy recurring_obligations_update on public.recurring_obligations
+  for update to authenticated
+  using (
+    app.has_permission('institutions.obligations:edit')
+    and app.can_access_institution(institution_id)
+  )
+  with check (
+    app.has_permission('institutions.obligations:edit')
+    and app.can_access_institution(institution_id)
+  );
+
+create policy recurring_obligations_delete on public.recurring_obligations
+  for delete to authenticated
+  using (
+    app.has_permission('institutions.obligations:delete')
+    and app.can_access_institution(institution_id)
+  );
+
+grant select, insert, update, delete on public.recurring_obligations to authenticated;
+
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- ▼ 0010_advisor_fixes.sql
+-- ──────────────────────────────────────────────────────────────────────────
+
+-- =============================================================================
+-- 0010 — Supabase denetçisinin (advisor) bulduğu güvenlik ve performans
+--         sorunlarının düzeltilmesi.
+--
+-- Canlı projede çalıştırılan denetim şunları buldu:
+--
+--   GÜVENLİK
+--   1. app.touch_updated_at fonksiyonunun search_path'i sabitlenmemiş.
+--   2. citext ve btree_gist uzantıları public şemasında — API üzerinden
+--      gereksiz yere görünür oluyorlar.
+--
+--   PERFORMANS
+--   3. Beş politikada auth.uid() her satır için yeniden değerlendiriliyor.
+--   4. Dokuz tabloda SELECT sırasında iki politika birden çalışıyor.
+--   5. Bir yabancı anahtarın kapsayıcı indeksi yok.
+--
+-- 3 ve 4 bugün fark edilmez — tablolar boş. On binlerce satırlık bir satış
+-- tablosunda ise her sorguyu gözle görülür şekilde yavaşlatırdı. Veri girmeye
+-- başlamadan önce düzeltmek en ucuz zamanı.
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- 1. Fonksiyon search_path'i
+--
+-- Sabitlenmemiş search_path, fonksiyonun hangi şemadaki nesneyi çağıracağını
+-- çağıranın ayarına bırakır. Bu tetikleyici yalnızca now() kullanıyor, ama
+-- kural kuralıdır.
+-- -----------------------------------------------------------------------------
+
+alter function app.touch_updated_at() set search_path = pg_catalog, pg_temp;
+
+-- -----------------------------------------------------------------------------
+-- 2. Uzantıları public şemasından çıkar
+--
+-- Sütun türleri OID ile bağlıdır; taşıma mevcut veriyi etkilemez.
+-- -----------------------------------------------------------------------------
+
+create schema if not exists extensions;
+grant usage on schema extensions to authenticated, anon, service_role;
+
+do $$
+begin
+  if exists (
+    select 1 from pg_extension e
+    join pg_namespace n on n.oid = e.extnamespace
+    where e.extname = 'citext' and n.nspname = 'public'
+  ) then
+    alter extension citext set schema extensions;
+  end if;
+
+  if exists (
+    select 1 from pg_extension e
+    join pg_namespace n on n.oid = e.extnamespace
+    where e.extname = 'btree_gist' and n.nspname = 'public'
+  ) then
+    alter extension btree_gist set schema extensions;
+  end if;
+end $$;
+
+-- -----------------------------------------------------------------------------
+-- 3. Eksik yabancı anahtar indeksi
+-- -----------------------------------------------------------------------------
+
+create index if not exists user_permission_overrides_permission_idx
+  on public.user_permission_overrides (permission_id);
+
+-- -----------------------------------------------------------------------------
+-- 4 ve 5. Politikaların yeniden yazımı
+--
+-- İki değişiklik var:
+--
+-- (a) auth.uid() ve app.has_permission(...) çağrıları `(select ...)` içine
+--     alındı. Böylece PostgreSQL bunları sorgu başına bir kez hesaplar,
+--     satır başına değil. Aynı kararı on bin satır için on bin kez vermenin
+--     anlamı yok.
+--
+-- (b) `for all` politikaları ayrı INSERT / UPDATE / DELETE politikalarına
+--     bölündü. `for all` SELECT'i de kapsadığı için her okumada iki politika
+--     birden çalışıyordu.
+--
+-- Kuralların kendisi değişmedi — yalnızca nasıl değerlendirildikleri.
+-- Doğruluğu supabase/tests altındaki iddialar koruyor.
+-- -----------------------------------------------------------------------------
+
+-- Companies ------------------------------------------------------------------
+drop policy if exists companies_select on public.companies;
+drop policy if exists companies_write on public.companies;
+
+create policy companies_select on public.companies
+  for select to authenticated
+  using ((select app.is_active_user()));
+
+create policy companies_insert on public.companies
+  for insert to authenticated
+  with check ((select app.has_permission('admin.companies:manage')));
+
+create policy companies_update on public.companies
+  for update to authenticated
+  using ((select app.has_permission('admin.companies:manage')))
+  with check ((select app.has_permission('admin.companies:manage')));
+
+create policy companies_delete on public.companies
+  for delete to authenticated
+  using ((select app.has_permission('admin.companies:manage')));
+
+-- Institutions ---------------------------------------------------------------
+drop policy if exists institutions_select on public.institutions;
+drop policy if exists institutions_write on public.institutions;
+
+create policy institutions_select on public.institutions
+  for select to authenticated
+  using (
+    (select app.is_active_user())
+    and (
+      (select app.has_permission('admin.institutions:view'))
+      or app.can_access_institution(id)
+    )
+  );
+
+create policy institutions_insert on public.institutions
+  for insert to authenticated
+  with check ((select app.has_permission('admin.institutions:manage')));
+
+create policy institutions_update on public.institutions
+  for update to authenticated
+  using ((select app.has_permission('admin.institutions:manage')))
+  with check ((select app.has_permission('admin.institutions:manage')));
+
+create policy institutions_delete on public.institutions
+  for delete to authenticated
+  using ((select app.has_permission('admin.institutions:manage')));
+
+-- Education periods ----------------------------------------------------------
+drop policy if exists education_periods_select on public.education_periods;
+drop policy if exists education_periods_write on public.education_periods;
+
+create policy education_periods_select on public.education_periods
+  for select to authenticated
+  using ((select app.is_active_user()));
+
+create policy education_periods_insert on public.education_periods
+  for insert to authenticated
+  with check ((select app.has_permission('admin.education_periods:manage')));
+
+create policy education_periods_update on public.education_periods
+  for update to authenticated
+  using ((select app.has_permission('admin.education_periods:manage')))
+  with check ((select app.has_permission('admin.education_periods:manage')));
+
+create policy education_periods_delete on public.education_periods
+  for delete to authenticated
+  using ((select app.has_permission('admin.education_periods:manage')));
+
+-- Profiles -------------------------------------------------------------------
+drop policy if exists profiles_select on public.profiles;
+drop policy if exists profiles_write on public.profiles;
+
+create policy profiles_select on public.profiles
+  for select to authenticated
+  using (
+    id = (select auth.uid())
+    or (select app.has_permission('admin.users:view'))
+  );
+
+create policy profiles_insert on public.profiles
+  for insert to authenticated
+  with check ((select app.has_permission('admin.users:manage')));
+
+create policy profiles_update on public.profiles
+  for update to authenticated
+  using ((select app.has_permission('admin.users:manage')))
+  with check ((select app.has_permission('admin.users:manage')));
+
+create policy profiles_delete on public.profiles
+  for delete to authenticated
+  using ((select app.has_permission('admin.users:manage')));
+
+-- Roles ----------------------------------------------------------------------
+drop policy if exists roles_select on public.roles;
+drop policy if exists roles_write on public.roles;
+
+create policy roles_select on public.roles
+  for select to authenticated
+  using ((select app.is_active_user()));
+
+create policy roles_insert on public.roles
+  for insert to authenticated
+  with check ((select app.has_permission('admin.roles:manage')));
+
+create policy roles_update on public.roles
+  for update to authenticated
+  using ((select app.has_permission('admin.roles:manage')))
+  with check ((select app.has_permission('admin.roles:manage')));
+
+create policy roles_delete on public.roles
+  for delete to authenticated
+  using ((select app.has_permission('admin.roles:manage')));
+
+-- Permissions (reference data — okuma dışında politika yok) -------------------
+drop policy if exists permissions_select on public.permissions;
+
+create policy permissions_select on public.permissions
+  for select to authenticated
+  using ((select app.is_active_user()));
+
+-- Role permissions -----------------------------------------------------------
+drop policy if exists role_permissions_select on public.role_permissions;
+drop policy if exists role_permissions_write on public.role_permissions;
+
+create policy role_permissions_select on public.role_permissions
+  for select to authenticated
+  using ((select app.is_active_user()));
+
+create policy role_permissions_insert on public.role_permissions
+  for insert to authenticated
+  with check ((select app.has_permission('admin.permissions:manage')));
+
+create policy role_permissions_update on public.role_permissions
+  for update to authenticated
+  using ((select app.has_permission('admin.permissions:manage')))
+  with check ((select app.has_permission('admin.permissions:manage')));
+
+create policy role_permissions_delete on public.role_permissions
+  for delete to authenticated
+  using ((select app.has_permission('admin.permissions:manage')));
+
+-- User roles -----------------------------------------------------------------
+drop policy if exists user_roles_select on public.user_roles;
+drop policy if exists user_roles_write on public.user_roles;
+
+create policy user_roles_select on public.user_roles
+  for select to authenticated
+  using (
+    user_id = (select auth.uid())
+    or (select app.has_permission('admin.users:view'))
+  );
+
+create policy user_roles_insert on public.user_roles
+  for insert to authenticated
+  with check ((select app.has_permission('admin.users:manage')));
+
+create policy user_roles_update on public.user_roles
+  for update to authenticated
+  using ((select app.has_permission('admin.users:manage')))
+  with check ((select app.has_permission('admin.users:manage')));
+
+create policy user_roles_delete on public.user_roles
+  for delete to authenticated
+  using ((select app.has_permission('admin.users:manage')));
+
+-- User permission overrides --------------------------------------------------
+drop policy if exists user_permission_overrides_select on public.user_permission_overrides;
+drop policy if exists user_permission_overrides_write on public.user_permission_overrides;
+
+create policy user_permission_overrides_select on public.user_permission_overrides
+  for select to authenticated
+  using (
+    user_id = (select auth.uid())
+    or (select app.has_permission('admin.users:view'))
+  );
+
+create policy user_permission_overrides_insert on public.user_permission_overrides
+  for insert to authenticated
+  with check ((select app.has_permission('admin.permissions:manage')));
+
+create policy user_permission_overrides_update on public.user_permission_overrides
+  for update to authenticated
+  using ((select app.has_permission('admin.permissions:manage')))
+  with check ((select app.has_permission('admin.permissions:manage')));
+
+create policy user_permission_overrides_delete on public.user_permission_overrides
+  for delete to authenticated
+  using ((select app.has_permission('admin.permissions:manage')));
+
+-- User institution access ----------------------------------------------------
+drop policy if exists user_institution_access_select on public.user_institution_access;
+drop policy if exists user_institution_access_write on public.user_institution_access;
+
+create policy user_institution_access_select on public.user_institution_access
+  for select to authenticated
+  using (
+    user_id = (select auth.uid())
+    or (select app.has_permission('admin.users:view'))
+  );
+
+create policy user_institution_access_insert on public.user_institution_access
+  for insert to authenticated
+  with check ((select app.has_permission('admin.users:manage')));
+
+create policy user_institution_access_update on public.user_institution_access
+  for update to authenticated
+  using ((select app.has_permission('admin.users:manage')))
+  with check ((select app.has_permission('admin.users:manage')));
+
+create policy user_institution_access_delete on public.user_institution_access
+  for delete to authenticated
+  using ((select app.has_permission('admin.users:manage')));
+
+-- Audit logs (yalnızca ekleme — silme ve güncelleme politikası bilerek yok) ---
+drop policy if exists audit_logs_select on public.audit_logs;
+drop policy if exists audit_logs_insert on public.audit_logs;
+
+create policy audit_logs_select on public.audit_logs
+  for select to authenticated
+  using ((select app.has_permission('admin.audit_log:view')));
+
+create policy audit_logs_insert on public.audit_logs
+  for insert to authenticated
+  with check (
+    (select app.is_active_user())
+    and actor_id = (select auth.uid())
+  );
+
+-- Recurring obligations ------------------------------------------------------
+drop policy if exists recurring_obligations_select on public.recurring_obligations;
+drop policy if exists recurring_obligations_insert on public.recurring_obligations;
+drop policy if exists recurring_obligations_update on public.recurring_obligations;
+drop policy if exists recurring_obligations_delete on public.recurring_obligations;
+
+create policy recurring_obligations_select on public.recurring_obligations
+  for select to authenticated
+  using (
+    (select app.has_permission('institutions.obligations:view'))
+    and app.can_access_institution(institution_id)
+  );
+
+create policy recurring_obligations_insert on public.recurring_obligations
+  for insert to authenticated
+  with check (
+    (
+      (select app.has_permission('institutions.obligations:create'))
+      or (select app.has_permission('institutions.obligations:edit'))
+    )
+    and app.can_access_institution(institution_id)
+  );
+
+create policy recurring_obligations_update on public.recurring_obligations
+  for update to authenticated
+  using (
+    (select app.has_permission('institutions.obligations:edit'))
+    and app.can_access_institution(institution_id)
+  )
+  with check (
+    (select app.has_permission('institutions.obligations:edit'))
+    and app.can_access_institution(institution_id)
+  );
+
+create policy recurring_obligations_delete on public.recurring_obligations
+  for delete to authenticated
+  using (
+    (select app.has_permission('institutions.obligations:delete'))
+    and app.can_access_institution(institution_id)
+  );
+
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- ▼ 0011_obligation_increase_date.sql
+-- ──────────────────────────────────────────────────────────────────────────
+
+-- =============================================================================
+-- 0011 — Yükümlülüklere zam tarihi.
+--
+-- 0009'da artış kuralı ve oranı vardı ama tarihi yoktu. "Her yıl %25 artıyor"
+-- bilgisi, ne zaman arttığı bilinmeden nakit tahmini için işe yaramaz: Eylül'de
+-- artan bir kira ile Ocak'ta artan bir kira, aynı yılın nakit eğrisini çok
+-- farklı yerlerden büker.
+--
+-- Tarih gün + ay olarak saklanır, tam tarih olarak değil: kira artışı her yıl
+-- aynı günde tekrar eder. Tek bir tarih saklasaydık, o tarih geçtiğinde bilgi
+-- ölürdü ve her yıl elle güncellenmesi gerekirdi.
+-- =============================================================================
+
+alter table public.recurring_obligations
+  add column if not exists increase_month smallint,
+  add column if not exists increase_day smallint;
+
+comment on column public.recurring_obligations.increase_month is
+  'Zammın uygulandığı ay (1-12). Her yıl tekrar eder.';
+comment on column public.recurring_obligations.increase_day is
+  'Zammın uygulandığı gün. Ayın son gününü aşarsa o ayın sonuna kırpılır.';
+
+alter table public.recurring_obligations
+  drop constraint if exists recurring_obligations_increase_month_range;
+alter table public.recurring_obligations
+  add constraint recurring_obligations_increase_month_range
+  check (increase_month is null or increase_month between 1 and 12);
+
+alter table public.recurring_obligations
+  drop constraint if exists recurring_obligations_increase_day_range;
+alter table public.recurring_obligations
+  add constraint recurring_obligations_increase_day_range
+  check (increase_day is null or increase_day between 1 and 31);
+
+-- Yarım tarih kabul edilmez: ay varsa gün de olmalı.
+alter table public.recurring_obligations
+  drop constraint if exists recurring_obligations_increase_date_complete;
+alter table public.recurring_obligations
+  add constraint recurring_obligations_increase_date_complete
+  check (
+    (increase_month is null and increase_day is null)
+    or (increase_month is not null and increase_day is not null)
+  );
+
+-- -----------------------------------------------------------------------------
+-- Sürüm oluşturma fonksiyonu yeni alanları da alır.
+--
+-- Eski imza bırakılırsa iki aşırı yükleme oluşur ve çağrı belirsizleşir;
+-- bu yüzden önce düşürülüyor.
+-- -----------------------------------------------------------------------------
+
+drop function if exists public.set_recurring_obligation(
+  uuid, app.obligation_type, text, date, numeric, numeric, numeric,
+  smallint, text, app.increase_rule, numeric, text
+);
+
+create or replace function public.set_recurring_obligation(
+  p_institution_id  uuid,
+  p_obligation_type app.obligation_type,
+  p_stream_name     text,
+  p_effective_from  date,
+  p_amount_total    numeric,
+  p_amount_bank     numeric default null,
+  p_amount_cash     numeric default null,
+  p_payment_day     smallint default null,
+  p_counterparty    text default null,
+  p_increase_rule   app.increase_rule default 'none',
+  p_increase_rate   numeric default null,
+  p_increase_month  smallint default null,
+  p_increase_day    smallint default null,
+  p_notes           text default null
+)
+returns uuid
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  v_stream    text := coalesce(p_stream_name, '');
+  v_new_id    uuid;
+  v_has_prior boolean;
+begin
+  select exists (
+    select 1 from public.recurring_obligations
+    where institution_id = p_institution_id
+      and obligation_type = p_obligation_type
+      and stream_name = v_stream
+  ) into v_has_prior;
+
+  -- Mevcut bir akışın üzerine sürüm eklemek düzenlemedir; ilk sürümü açmak
+  -- oluşturmadır. İkisi ayrı yetki olabilir.
+  if v_has_prior then
+    if not app.has_permission('institutions.obligations:edit') then
+      raise exception 'Bu yükümlülüğü değiştirme yetkiniz yok'
+        using errcode = 'insufficient_privilege';
+    end if;
+  else
+    if not app.has_permission('institutions.obligations:create') then
+      raise exception 'Yükümlülük oluşturma yetkiniz yok'
+        using errcode = 'insufficient_privilege';
+    end if;
+  end if;
+
+  if exists (
+    select 1 from public.recurring_obligations
+    where institution_id = p_institution_id
+      and obligation_type = p_obligation_type
+      and stream_name = v_stream
+      and effective_from = p_effective_from
+  ) then
+    raise exception 'Bu tarihte başlayan bir sürüm zaten var: %', p_effective_from
+      using errcode = 'unique_violation';
+  end if;
+
+  if exists (
+    select 1 from public.recurring_obligations
+    where institution_id = p_institution_id
+      and obligation_type = p_obligation_type
+      and stream_name = v_stream
+      and effective_from > p_effective_from
+  ) then
+    raise exception
+      'Daha ileri tarihli bir sürüm var. Yeni sürüm ondan sonra başlamalı.'
+      using errcode = 'check_violation';
+  end if;
+
+  update public.recurring_obligations
+  set effective_to = p_effective_from - 1
+  where institution_id = p_institution_id
+    and obligation_type = p_obligation_type
+    and stream_name = v_stream
+    and effective_from < p_effective_from
+    and (effective_to is null or effective_to >= p_effective_from);
+
+  insert into public.recurring_obligations (
+    institution_id, obligation_type, stream_name, counterparty,
+    amount_total, amount_bank, amount_cash, payment_day,
+    effective_from, effective_to, increase_rule, increase_rate,
+    increase_month, increase_day, notes
+  ) values (
+    p_institution_id, p_obligation_type, v_stream, p_counterparty,
+    p_amount_total, p_amount_bank, p_amount_cash, p_payment_day,
+    p_effective_from, null, p_increase_rule, p_increase_rate,
+    p_increase_month, p_increase_day, p_notes
+  )
+  returning id into v_new_id;
+
+  return v_new_id;
+end;
+$$;
+
+comment on function public.set_recurring_obligation is
+  'Eski sürümü kapatır ve yenisini açar. İkisi tek işlemde gerçekleşir.';
+
+grant execute on function public.set_recurring_obligation(
+  uuid, app.obligation_type, text, date, numeric, numeric, numeric,
+  smallint, text, app.increase_rule, numeric, smallint, smallint, text
+) to authenticated;
 
 commit;
 

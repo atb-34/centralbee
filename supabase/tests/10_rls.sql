@@ -13,20 +13,7 @@
 \pset pager off
 \set QUIET on
 
-create or replace function pg_temp.assert_eq(
-  actual anyelement,
-  expected anyelement,
-  label text
-) returns void
-language plpgsql
-as $$
-begin
-  if actual is distinct from expected then
-    raise exception 'BAŞARISIZ: % — beklenen %, gelen %', label, expected, actual;
-  end if;
-  raise notice 'ok  %', label;
-end;
-$$;
+-- `tests.assert_eq` is defined by 00_local_prelude.sql.
 
 -- -----------------------------------------------------------------------------
 -- Fixtures. Inserted as superuser, deliberately bypassing RLS.
@@ -93,18 +80,18 @@ select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111
 
 do $$
 begin
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.institutions)::bigint, 1::bigint,
     'kurum müdürü yalnızca kendi kurumunu görür');
 
   -- The point of doing this in the database: changing the id in the URL is
   -- not a way around it.
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.institutions
      where id = 'bbbbbbbb-0000-0000-0000-000000000002')::bigint, 0::bigint,
     'müdür başka kurumu id ile isteyince de göremez');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.profiles)::bigint, 1::bigint,
     'müdür yalnızca kendi profilini görür');
 end $$;
@@ -113,7 +100,7 @@ select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222
 
 do $$
 begin
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.institutions)::bigint, 3::bigint,
     'üst yönetim (kapsam=all) tüm kurumları görür');
 end $$;
@@ -125,11 +112,11 @@ select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111
 
 do $$
 begin
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('reports.performance:view'), true,
     'müdür performans raporunu görebilir');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('reports.financial:view'), false,
     'müdür finansal raporu göremez');
 end $$;
@@ -139,15 +126,15 @@ select set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333
 do $$
 begin
   -- The rule that most often gets lost in permission systems.
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('data_upload.financial:upload'), true,
     'veri operatörü finansal veri YÜKLEYEBİLİR');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('reports.financial:view'), false,
     'veri operatörü finansal raporu GÖREMEZ (yükleme ≠ görüntüleme)');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.institutions)::bigint, 2::bigint,
     'veri operatörü yalnızca atandığı 2 kurumu görür');
 end $$;
@@ -160,33 +147,33 @@ select set_config('request.jwt.claim.sub', '55555555-5555-5555-5555-555555555555
 do $$
 begin
   -- Yüklediği alanın raporunu görür…
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('data_upload.sales:upload'), true,
     'satış operatörü satış verisi yükleyebilir');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('reports.performance:view'), true,
     'satış operatörü performans raporunu görebilir');
 
   -- …ama yalnızca o alanın.
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('reports.financial:view'), false,
     'satış operatörü finansal raporu göremez');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('data_upload.financial:upload'), false,
     'satış operatörü finansal veri yükleyemez');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('reports.performance.ranking:view'), false,
     'satış operatörü kurumlar arası sıralamayı göremez');
 
   -- Hedef koymak bir yönetim kararıdır.
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('data_upload.targets:view'), true,
     'satış operatörü hedefleri görebilir');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('data_upload.targets:edit'), false,
     'satış operatörü hedef belirleyemez');
 end $$;
@@ -195,19 +182,19 @@ select set_config('request.jwt.claim.sub', '66666666-6666-6666-6666-666666666666
 
 do $$
 begin
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('data_upload.financial:upload'), true,
     'finans operatörü finansal veri yükleyebilir');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('reports.financial:view'), true,
     'finans operatörü finansal raporu görebilir');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('reports.performance:view'), false,
     'finans operatörü performans raporunu göremez');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('data_upload.sales:upload'), false,
     'finans operatörü satış verisi yükleyemez');
 end $$;
@@ -220,11 +207,11 @@ select set_config('request.jwt.claim.sub', '44444444-4444-4444-4444-444444444444
 do $$
 begin
   -- Credentials may still be valid; the profile flag is what decides.
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     app.has_permission('admin.users:manage'), false,
     'devre dışı hesap admin rolüne rağmen yetki taşımaz');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.institutions)::bigint, 0::bigint,
     'devre dışı hesap hiçbir kurum göremez');
 end $$;
@@ -243,10 +230,10 @@ begin
   where id = 'bbbbbbbb-0000-0000-0000-000000000001';
   get diagnostics v_affected = row_count;
 
-  perform pg_temp.assert_eq(v_affected, 0,
+  perform tests.assert_eq(v_affected, 0,
     'müdür kurum kaydını değiştiremez');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select name from public.institutions
      where id = 'bbbbbbbb-0000-0000-0000-000000000001'),
     'BIS Bahçeşehir',
@@ -264,10 +251,10 @@ begin
   delete from public.audit_logs;
   get diagnostics v_affected = row_count;
 
-  perform pg_temp.assert_eq(v_affected, 0,
+  perform tests.assert_eq(v_affected, 0,
     'denetim kaydı silinemez');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.audit_logs)::bigint, 1::bigint,
     'denetim kaydı yerinde duruyor');
 end $$;
@@ -281,11 +268,11 @@ do $$
 declare
   v_overlap_rejected boolean := false;
 begin
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.education_periods where is_active)::bigint, 1::bigint,
     'aynı anda tek aktif dönem');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.education_periods
      where id = app.period_for_date(current_date))::bigint, 1::bigint,
     'bugünün tarihi tam olarak bir döneme eşleniyor');
@@ -297,7 +284,7 @@ begin
     v_overlap_rejected := true;
   end;
 
-  perform pg_temp.assert_eq(v_overlap_rejected, true,
+  perform tests.assert_eq(v_overlap_rejected, true,
     'çakışan dönem veritabanı tarafından reddedilir');
 end $$;
 
@@ -306,13 +293,13 @@ end $$;
 
 do $$
 begin
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.roles where is_system)::bigint, 11::bigint,
     '11 sistem rolü tanımlı');
 
   -- Giriş sonrası açılış ekranı Günlük'tür; bu yetkisi olmayan bir rol
   -- kullanıcıyı doğrudan yetki reddi ekranına düşürürdü.
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.roles r
      where r.is_system
        and not exists (
@@ -322,12 +309,12 @@ begin
        ))::bigint, 0::bigint,
     'her sistem rolü açılış ekranını açabilir');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.permissions
      where key <> module || ':' || action::text)::bigint, 0::bigint,
     'her izin anahtarı modül ve eylemiyle tutarlı');
 
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.role_permissions rp
      join public.roles r on r.id = rp.role_id
      where r.key = 'viewer'
@@ -337,7 +324,7 @@ begin
     'izleyici rolü yalnızca görüntüleme yetkisi taşır');
 
   -- Genel operatör rolü rapor taşımaz; alan bazlı roller bunun için vardır.
-  perform pg_temp.assert_eq(
+  perform tests.assert_eq(
     (select count(*) from public.role_permissions rp
      join public.roles r on r.id = rp.role_id
      where r.key = 'data_operator'
