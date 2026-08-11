@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Sun,
   Users,
+  Wallet,
 } from "lucide-react";
 
 import { MODULES, permission } from "@/lib/permissions/keys";
@@ -48,6 +49,15 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/institutions",
         icon: Building2,
         anyOf: [permission(MODULES.institutions, "view")],
+      },
+      {
+        // "What are the group's fixed monthly costs?" is an executive question.
+        // Answering it by walking into each institution in turn is not an
+        // answer, so the roll-up lives at the top level.
+        label: "Yükümlülükler",
+        href: "/obligations",
+        icon: Wallet,
+        anyOf: [permission(MODULES.institutionObligations, "view")],
       },
     ],
   },
