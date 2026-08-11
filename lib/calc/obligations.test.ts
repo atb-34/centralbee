@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  costByType,
   daysUntil,
   groupIntoStreams,
   monthlyFixedCost,
@@ -192,6 +193,57 @@ describe("monthlyFixedCost", () => {
     ]);
 
     expect(monthlyFixedCost(streams)).toBe(1_650_000);
+  });
+});
+
+describe("costByType", () => {
+  it("splits the monthly cost across types and leaves the rest at zero", () => {
+    const streams = groupIntoStreams([
+      obligation({
+        effective_from: "2025-09-01",
+        obligation_type: "salary",
+        amount_total: 1_000_000,
+      }),
+      obligation({
+        effective_from: "2025-09-01",
+        obligation_type: "rent",
+        stream_name: "Ana Bina",
+        amount_total: 480_000,
+      }),
+      obligation({
+        effective_from: "2025-09-01",
+        obligation_type: "rent",
+        stream_name: "Şube",
+        amount_total: 220_000,
+      }),
+      obligation({
+        effective_from: "2025-09-01",
+        obligation_type: "sgk",
+        amount_total: 150_000,
+      }),
+    ]);
+
+    expect(costByType(streams)).toEqual({
+      salary: 1_000_000,
+      rent: 700_000,
+      sgk: 150_000,
+      tax: 0,
+      insurance: 0,
+      other: 0,
+    });
+  });
+
+  it("ignores streams that have ended", () => {
+    const streams = groupIntoStreams([
+      obligation({
+        effective_from: "2020-01-01",
+        effective_to: "2021-01-01",
+        obligation_type: "rent",
+        amount_total: 999_999,
+      }),
+    ]);
+
+    expect(costByType(streams).rent).toBe(0);
   });
 });
 

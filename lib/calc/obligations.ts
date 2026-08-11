@@ -113,6 +113,27 @@ export function monthlyFixedCost(streams: ObligationStream[]): number {
   );
 }
 
+/** Monthly cost broken down by obligation type, for what is in force today. */
+export function costByType(
+  streams: ObligationStream[]
+): Record<ObligationType, number> {
+  const totals = {
+    salary: 0,
+    rent: 0,
+    sgk: 0,
+    tax: 0,
+    insurance: 0,
+    other: 0,
+  } satisfies Record<ObligationType, number>;
+
+  for (const stream of streams) {
+    if (!stream.current) continue;
+    totals[stream.type] += stream.current.amount_total;
+  }
+
+  return totals;
+}
+
 /** Salary split across bank and cash, for the streams in force today. */
 export function salarySplit(streams: ObligationStream[]): {
   bank: number;
