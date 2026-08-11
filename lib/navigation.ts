@@ -2,6 +2,8 @@ import type { LucideIcon } from "lucide-react";
 import {
   Building2,
   CalendarRange,
+  ClipboardList,
+  Contact,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -59,6 +61,12 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Wallet,
         anyOf: [permission(MODULES.institutionObligations, "view")],
       },
+      {
+        label: "Operasyon",
+        href: "/operations",
+        icon: ClipboardList,
+        anyOf: [permission(MODULES.operations, "view")],
+      },
     ],
   },
   {
@@ -70,6 +78,12 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/admin/users",
         icon: Users,
         anyOf: [permission(MODULES.adminUsers, "view")],
+      },
+      {
+        label: "Kişiler",
+        href: "/admin/people",
+        icon: Contact,
+        anyOf: [permission(MODULES.people, "view")],
       },
       {
         label: "Roller ve Yetkiler",

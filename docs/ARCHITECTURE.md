@@ -146,8 +146,9 @@ transactions     enrollments     targets          obligations   ...
 | Kimlik ve yetki | `profiles` `roles` `permissions` `role_permissions` `user_roles` `user_permission_overrides` `user_institution_access` | 1 ✅ |
 | Kuruluş yapısı | `companies` `institutions` `education_periods` | 1 ✅ |
 | Yükümlülükler | `recurring_obligations` (sürümlü) | 2 ✅ |
+| Kişiler | `people` | 3 ✅ |
+| Operasyon | `operations` `operation_updates` | 3 ✅ |
 | Platform | `data_import_batches` `data_import_errors` `audit_logs` | 1 (kısmi) |
-| Kişiler | `people` | 3 (gerçekten kullanılacağı faz) |
 | Performans | `sales_enrollments` `performance_targets` `crm_daily` | 5 |
 | Finans | `financial_transactions` `financial_categories` `financial_subcategories` `bank_accounts` `cash_position_snapshots` `cash_position_items` | 6 |
 | Nakit tahmini | `pos_receivables` `pos_settlements` `checks` `scheduled_payments` `recurring_obligations` `current_payables` `forecast_assumptions` | 2, 7 |

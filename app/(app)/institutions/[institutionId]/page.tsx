@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft, ClipboardList, Lock } from "lucide-react";
 
 import { ObligationsPanel } from "./obligations-panel";
+import { OperationsBoard } from "@/app/(app)/operations/operations-board";
+import { sortOperations } from "@/lib/calc/operations";
 import { EmptyState } from "@/components/app/empty-state";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +30,7 @@ export const metadata: Metadata = {
 const TABS = [
   { key: "genel", label: "Genel Bakış" },
   { key: "yukumlulukler", label: "Yükümlülükler" },
+  { key: "operasyon", label: "Operasyon" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -73,8 +76,15 @@ export default async function InstitutionDetailPage(
     can(viewer, permission(MODULES.institutionObligations, "edit")) ||
     can(viewer, permission(MODULES.institutionObligations, "create"));
 
-  const [{ data: company }, { data: manager }, { data: obligations }] =
-    await Promise.all([
+  const canViewOperations = can(viewer, permission(MODULES.operations, "view"));
+
+  const [
+    { data: company },
+    { data: manager },
+    { data: obligations },
+    { data: operationRowsData },
+    { data: operationPeople },
+  ] = await Promise.all([
       supabase
         .from("companies")
         .select("id, code, name, default_salary_payment_day")
@@ -94,7 +104,19 @@ export default async function InstitutionDetailPage(
             .eq("institution_id", institutionId)
             .order("effective_from", { ascending: false })
         : Promise.resolve({ data: [] }),
+      canViewOperations
+        ? supabase.from("operations").select("*").eq("institution_id", institutionId)
+        : Promise.resolve({ data: [] }),
+      canViewOperations && can(viewer, permission(MODULES.people, "view"))
+        ? supabase
+            .from("people")
+            .select("id, full_name")
+            .eq("is_active", true)
+            .order("full_name")
+        : Promise.resolve({ data: [] }),
     ]);
+
+  const operationRows = operationRowsData ?? [];
 
   return (
     <div className="flex flex-col gap-5">
@@ -209,6 +231,46 @@ export default async function InstitutionDetailPage(
             </CardContent>
           </Card>
         </div>
+      ) : null}
+
+      {activeTab === "operasyon" ? (
+        canViewOperations ? (
+          operationRows.length === 0 ? (
+            <EmptyState
+              icon={ClipboardList}
+              title="Bu kurumda açık iş yok"
+              description="Tadilat, bakım ve izin süreçleri Operasyon bölümünden takip edilir."
+              action={
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/operations">Operasyona git</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <Card className="overflow-hidden">
+              <OperationsBoard
+                operations={sortOperations(operationRows)}
+                institutionNames={{ [institutionId]: institution.name }}
+                personNames={Object.fromEntries(
+                  (operationPeople ?? []).map((row) => [row.id, row.full_name])
+                )}
+                updatesByOperation={{}}
+                institutions={[{ id: institutionId, name: institution.name }]}
+                people={(operationPeople ?? []).map((row) => ({
+                  id: row.id,
+                  name: row.full_name,
+                }))}
+                canEdit={can(viewer, permission(MODULES.operations, "edit"))}
+              />
+            </Card>
+          )
+        ) : (
+          <EmptyState
+            icon={Lock}
+            title="Operasyonları görme yetkiniz yok"
+            description="Bu bölüm için yetkiniz tanımlı değil. Sistem yöneticinizden talep edebilirsiniz."
+          />
+        )
       ) : null}
 
       {activeTab === "yukumlulukler" ? (

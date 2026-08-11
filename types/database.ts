@@ -30,6 +30,25 @@ export type ObligationType =
   | "insurance"
   | "other";
 
+export type OperationPriority = "critical" | "high" | "medium" | "low";
+
+export type OperationStatus =
+  | "not_started"
+  | "in_progress"
+  | "waiting"
+  | "blocked"
+  | "completed"
+  | "cancelled";
+
+export type OperationUpdateKind =
+  | "created"
+  | "note"
+  | "status"
+  | "priority"
+  | "progress"
+  | "deadline"
+  | "attention";
+
 export type IncreaseRule =
   | "none"
   | "fixed_percent"
@@ -188,6 +207,56 @@ export type RecurringObligationRow = Timestamps & {
   notes: string | null;
 };
 
+export type PersonRow = Timestamps & {
+  id: string;
+  full_name: string;
+  role_title: string | null;
+  phone: string | null;
+  email: string | null;
+  company_id: string | null;
+  institution_id: string | null;
+  /** Set when this person also has a login. */
+  profile_id: string | null;
+  is_active: boolean;
+  notes: string | null;
+};
+
+export type OperationRow = Timestamps & {
+  id: string;
+  institution_id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  priority: OperationPriority;
+  status: OperationStatus;
+  progress: number;
+  responsible_person_id: string | null;
+  start_date: string | null;
+  deadline: string | null;
+  completed_at: string | null;
+  estimated_cost: number | null;
+  actual_cost: number | null;
+  next_action: string | null;
+  next_action_date: string | null;
+  waiting_on: string | null;
+  blocker: string | null;
+  ceo_attention: boolean;
+  ceo_notes: string | null;
+  created_by: string | null;
+};
+
+export type OperationUpdateRow = {
+  id: number;
+  operation_id: string;
+  author_id: string | null;
+  author_name: string | null;
+  kind: OperationUpdateKind;
+  body: string;
+  old_value: Json | null;
+  new_value: Json | null;
+  created_at: string;
+};
+
 export type AuditLogRow = {
   id: number;
   actor_id: string | null;
@@ -292,6 +361,48 @@ export type Database = {
         | "created_at"
         | "updated_at"
       >;
+      people: Table<
+        PersonRow,
+        | "id"
+        | "role_title"
+        | "phone"
+        | "email"
+        | "company_id"
+        | "institution_id"
+        | "profile_id"
+        | "is_active"
+        | "notes"
+        | "created_at"
+        | "updated_at"
+      >;
+      operations: Table<
+        OperationRow,
+        | "id"
+        | "description"
+        | "category"
+        | "priority"
+        | "status"
+        | "progress"
+        | "responsible_person_id"
+        | "start_date"
+        | "deadline"
+        | "completed_at"
+        | "estimated_cost"
+        | "actual_cost"
+        | "next_action"
+        | "next_action_date"
+        | "waiting_on"
+        | "blocker"
+        | "ceo_attention"
+        | "ceo_notes"
+        | "created_by"
+        | "created_at"
+        | "updated_at"
+      >;
+      operation_updates: Table<
+        OperationUpdateRow,
+        "id" | "author_id" | "author_name" | "old_value" | "new_value" | "created_at"
+      >;
     };
     Views: Record<never, never>;
     Functions: {
@@ -325,6 +436,8 @@ export type Database = {
       institution_status: InstitutionStatus;
       obligation_type: ObligationType;
       increase_rule: IncreaseRule;
+      operation_priority: OperationPriority;
+      operation_status: OperationStatus;
     };
     CompositeTypes: Record<never, never>;
   };

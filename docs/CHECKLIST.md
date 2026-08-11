@@ -64,14 +64,32 @@ bağlantıdan kötüdür; bu modüller kendi fazlarında eklenecek.
 - Kurum profilinde Performans, Finansal, Operasyon, Bütçe, Reklam ve Ziyaretler
   sekmeleri yok — kendi fazlarıyla gelecekler.
 
-## Faz 3 — Operasyon
+## Faz 3 — Operasyon ✅
 
-- [ ] `operations` `operation_updates` `operation_files` `institution_visits`
-- [ ] Genel ve kuruma göre görünüm; öncelik → termin sıralaması
-- [ ] Kapalı satırda: görev, kurum, öncelik, sorumlu, termin, kalan gün,
+- [x] `people` — sorumlu kişiler dizini (sisteme giriş yapması gerekmez)
+- [x] `operations` ve `operation_updates`
+- [x] Genel görünüm + kuruma göre sekme; **CEO dikkati → öncelik → termin** sıralaması
+- [x] Kapalı satırda: görev, kurum, öncelik, sorumlu, termin, kalan gün,
       tahmini/gerçek maliyet, durum, ilerleme, CEO dikkati
-- [ ] Sağdan açılan detay çekmecesi (sayfa değiştirmeden)
-- [ ] Aktivite geçmişi, engelleyen/beklenen alanları, dosya ve fotoğraf
+- [x] Sağdan açılan detay çekmecesi — liste yerinde kalır
+- [x] **Otomatik aktivite geçmişi**: durum, öncelik, ilerleme, termin ve CEO
+      işareti değişince veritabanı tetikleyicisi kaydı kendi düşer
+- [x] Serbest metin notları; geçmiş değiştirilemez ve silinemez
+- [x] Engelleyen / kimi beklediği / sonraki adım alanları
+- [x] Tutarlılık kısıtları: tamamlanan iş %100, engellenen işin nedeni zorunlu,
+      termin başlangıçtan önce olamaz, tamamlanma anı tetikleyiciyle damgalanır
+- [x] Görünümler: Açık işler · CEO dikkati · Gecikenler · Tümü (URL'de taşınır)
+- [x] `lib/calc/operations.ts` + 25 birim testi
+- [x] 16 veritabanı iddiası (`supabase/tests/30_operations.sql`)
+
+**Bu fazda bilerek yapılmayanlar:**
+
+- **Dosya ve fotoğraf eki ertelendi.** Supabase Storage kurulumu, yükleme
+  politikaları ve dosya boyutu/tür doğrulaması ayrı bir iştir; yarım yapılmış
+  bir dosya eki, hiç olmayandan kötüdür.
+- **`institution_visits` Faz 8'e ertelendi.** "Bahçeşehir 31 gündür ziyaret
+  edilmedi" uyarısı Günlük ekranında anlam kazanır; oraya kadar yazacak ekranı
+  olmayan bir tablo olurdu.
 
 ## Faz 4 — Veri yükleme altyapısı
 
