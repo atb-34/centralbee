@@ -169,10 +169,12 @@ alter table public.audit_logs                enable row level security;
 -- Companies — every signed-in user needs the list to read a filter bar.
 -- -----------------------------------------------------------------------------
 
+drop policy if exists companies_select on public.companies;
 create policy companies_select on public.companies
   for select to authenticated
   using (app.is_active_user());
 
+drop policy if exists companies_write on public.companies;
 create policy companies_write on public.companies
   for all to authenticated
   using (app.has_permission('admin.companies:manage'))
@@ -182,6 +184,7 @@ create policy companies_write on public.companies
 -- Institutions — scoped. This is the policy the whole product leans on.
 -- -----------------------------------------------------------------------------
 
+drop policy if exists institutions_select on public.institutions;
 create policy institutions_select on public.institutions
   for select to authenticated
   using (
@@ -192,6 +195,7 @@ create policy institutions_select on public.institutions
     )
   );
 
+drop policy if exists institutions_write on public.institutions;
 create policy institutions_write on public.institutions
   for all to authenticated
   using (app.has_permission('admin.institutions:manage'))
@@ -201,10 +205,12 @@ create policy institutions_write on public.institutions
 -- Education periods
 -- -----------------------------------------------------------------------------
 
+drop policy if exists education_periods_select on public.education_periods;
 create policy education_periods_select on public.education_periods
   for select to authenticated
   using (app.is_active_user());
 
+drop policy if exists education_periods_write on public.education_periods;
 create policy education_periods_write on public.education_periods
   for all to authenticated
   using (app.has_permission('admin.education_periods:manage'))
@@ -217,6 +223,7 @@ create policy education_periods_write on public.education_periods
 -- user cannot widen their own scope or reactivate their own account.
 -- -----------------------------------------------------------------------------
 
+drop policy if exists profiles_select on public.profiles;
 create policy profiles_select on public.profiles
   for select to authenticated
   using (
@@ -224,6 +231,7 @@ create policy profiles_select on public.profiles
     or app.has_permission('admin.users:view')
   );
 
+drop policy if exists profiles_write on public.profiles;
 create policy profiles_write on public.profiles
   for all to authenticated
   using (app.has_permission('admin.users:manage'))
@@ -234,25 +242,30 @@ create policy profiles_write on public.profiles
 -- the app needs them to render. Neither carries sensitive data.
 -- -----------------------------------------------------------------------------
 
+drop policy if exists roles_select on public.roles;
 create policy roles_select on public.roles
   for select to authenticated
   using (app.is_active_user());
 
+drop policy if exists roles_write on public.roles;
 create policy roles_write on public.roles
   for all to authenticated
   using (app.has_permission('admin.roles:manage'))
   with check (app.has_permission('admin.roles:manage'));
 
+drop policy if exists permissions_select on public.permissions;
 create policy permissions_select on public.permissions
   for select to authenticated
   using (app.is_active_user());
 
 -- No write policy: the catalogue is reference data, changed only by migration.
 
+drop policy if exists role_permissions_select on public.role_permissions;
 create policy role_permissions_select on public.role_permissions
   for select to authenticated
   using (app.is_active_user());
 
+drop policy if exists role_permissions_write on public.role_permissions;
 create policy role_permissions_write on public.role_permissions
   for all to authenticated
   using (app.has_permission('admin.permissions:manage'))
@@ -262,28 +275,34 @@ create policy role_permissions_write on public.role_permissions
 -- User assignments — your own, or admin.users
 -- -----------------------------------------------------------------------------
 
+drop policy if exists user_roles_select on public.user_roles;
 create policy user_roles_select on public.user_roles
   for select to authenticated
   using (user_id = auth.uid() or app.has_permission('admin.users:view'));
 
+drop policy if exists user_roles_write on public.user_roles;
 create policy user_roles_write on public.user_roles
   for all to authenticated
   using (app.has_permission('admin.users:manage'))
   with check (app.has_permission('admin.users:manage'));
 
+drop policy if exists user_permission_overrides_select on public.user_permission_overrides;
 create policy user_permission_overrides_select on public.user_permission_overrides
   for select to authenticated
   using (user_id = auth.uid() or app.has_permission('admin.users:view'));
 
+drop policy if exists user_permission_overrides_write on public.user_permission_overrides;
 create policy user_permission_overrides_write on public.user_permission_overrides
   for all to authenticated
   using (app.has_permission('admin.permissions:manage'))
   with check (app.has_permission('admin.permissions:manage'));
 
+drop policy if exists user_institution_access_select on public.user_institution_access;
 create policy user_institution_access_select on public.user_institution_access
   for select to authenticated
   using (user_id = auth.uid() or app.has_permission('admin.users:view'));
 
+drop policy if exists user_institution_access_write on public.user_institution_access;
 create policy user_institution_access_write on public.user_institution_access
   for all to authenticated
   using (app.has_permission('admin.users:manage'))
@@ -293,10 +312,12 @@ create policy user_institution_access_write on public.user_institution_access
 -- Audit log — append only. Deliberately no update or delete policy.
 -- -----------------------------------------------------------------------------
 
+drop policy if exists audit_logs_select on public.audit_logs;
 create policy audit_logs_select on public.audit_logs
   for select to authenticated
   using (app.has_permission('admin.audit_log:view'));
 
+drop policy if exists audit_logs_insert on public.audit_logs;
 create policy audit_logs_insert on public.audit_logs
   for insert to authenticated
   with check (app.is_active_user() and actor_id = auth.uid());

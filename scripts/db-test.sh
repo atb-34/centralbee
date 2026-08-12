@@ -62,6 +62,30 @@ for file in "$ROOT"/supabase/migrations/*.sql; do
   echo "ok"
 done
 
+# Bir göç dosyasını yanlışlıkla ikinci kez çalıştırmak olağan bir hatadır —
+# elle SQL yapıştırırken kolayca olur. İkinci çalıştırmanın da temiz geçmesi
+# gerekir; aksi halde kullanıcı yarım uygulanmış bir şemayla baş başa kalır.
+echo "▸ Aynı göçler tekrar çalıştırılıyor (yeniden çalıştırılabilirlik)…"
+for file in "$ROOT"/supabase/migrations/*.sql; do
+  printf '  %-40s' "$(basename "$file")"
+  $PSQL -q -f "$file"
+  echo "ok"
+done
+
+if [[ -f "$ROOT/supabase/bundle.sql" ]]; then
+  # bundle.sql ilk kurulumda SQL Editor'e yapıştırılan dosyadır; ikinci kez
+  # yapıştırılması sık yapılan bir hatadır ve temiz geçmelidir.
+  echo "▸ bundle.sql ayrı bir veritabanında iki kez çalıştırılıyor…"
+  BUNDLE_PSQL="psql -h $WORKDIR -p $PORT -U postgres -v ON_ERROR_STOP=1 -d centralbee_bundle"
+  psql -h "$WORKDIR" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -q \
+    -c "create database centralbee_bundle;"
+  $BUNDLE_PSQL -q -f "$ROOT/supabase/tests/00_local_prelude.sql"
+  $BUNDLE_PSQL -q -f "$ROOT/supabase/bundle.sql"
+  printf '  ikinci çalıştırma… '
+  $BUNDLE_PSQL -q -f "$ROOT/supabase/bundle.sql"
+  echo "ok"
+fi
+
 echo "▸ Güvenlik testleri…"
 # Each assertion reports itself with RAISE NOTICE, so notices must come through.
 # Test files share one session-scoped database and run in filename order; later

@@ -110,6 +110,7 @@ create table if not exists public.companies (
 comment on column public.companies.default_salary_payment_day is
   'Default day of month salaries are paid. A starting point only — institutions override it.';
 
+drop trigger if exists companies_touch_updated_at on public.companies;
 create trigger companies_touch_updated_at
   before update on public.companies
   for each row execute function app.touch_updated_at();
@@ -149,6 +150,7 @@ create table if not exists public.institutions (
 create index if not exists institutions_company_id_idx on public.institutions (company_id);
 create index if not exists institutions_status_idx on public.institutions (status);
 
+drop trigger if exists institutions_touch_updated_at on public.institutions;
 create trigger institutions_touch_updated_at
   before update on public.institutions
   for each row execute function app.touch_updated_at();
@@ -180,6 +182,7 @@ create table if not exists public.education_periods (
 create unique index if not exists education_periods_single_active_idx
   on public.education_periods ((is_active)) where is_active;
 
+drop trigger if exists education_periods_touch_updated_at on public.education_periods;
 create trigger education_periods_touch_updated_at
   before update on public.education_periods
   for each row execute function app.touch_updated_at();
@@ -255,6 +258,7 @@ comment on column public.profiles.institution_scope is
 create index if not exists profiles_primary_institution_idx
   on public.profiles (primary_institution_id);
 
+drop trigger if exists profiles_touch_updated_at on public.profiles;
 create trigger profiles_touch_updated_at
   before update on public.profiles
   for each row execute function app.touch_updated_at();
@@ -292,6 +296,7 @@ comment on column public.roles.is_system is
 comment on column public.roles.rank is
   'Lower ranks outrank higher ones; used for ordering, not for authorisation.';
 
+drop trigger if exists roles_touch_updated_at on public.roles;
 create trigger roles_touch_updated_at
   before update on public.roles
   for each row execute function app.touch_updated_at();
@@ -589,10 +594,12 @@ alter table public.audit_logs                enable row level security;
 -- Companies — every signed-in user needs the list to read a filter bar.
 -- -----------------------------------------------------------------------------
 
+drop policy if exists companies_select on public.companies;
 create policy companies_select on public.companies
   for select to authenticated
   using (app.is_active_user());
 
+drop policy if exists companies_write on public.companies;
 create policy companies_write on public.companies
   for all to authenticated
   using (app.has_permission('admin.companies:manage'))
@@ -602,6 +609,7 @@ create policy companies_write on public.companies
 -- Institutions — scoped. This is the policy the whole product leans on.
 -- -----------------------------------------------------------------------------
 
+drop policy if exists institutions_select on public.institutions;
 create policy institutions_select on public.institutions
   for select to authenticated
   using (
@@ -612,6 +620,7 @@ create policy institutions_select on public.institutions
     )
   );
 
+drop policy if exists institutions_write on public.institutions;
 create policy institutions_write on public.institutions
   for all to authenticated
   using (app.has_permission('admin.institutions:manage'))
@@ -621,10 +630,12 @@ create policy institutions_write on public.institutions
 -- Education periods
 -- -----------------------------------------------------------------------------
 
+drop policy if exists education_periods_select on public.education_periods;
 create policy education_periods_select on public.education_periods
   for select to authenticated
   using (app.is_active_user());
 
+drop policy if exists education_periods_write on public.education_periods;
 create policy education_periods_write on public.education_periods
   for all to authenticated
   using (app.has_permission('admin.education_periods:manage'))
@@ -637,6 +648,7 @@ create policy education_periods_write on public.education_periods
 -- user cannot widen their own scope or reactivate their own account.
 -- -----------------------------------------------------------------------------
 
+drop policy if exists profiles_select on public.profiles;
 create policy profiles_select on public.profiles
   for select to authenticated
   using (
@@ -644,6 +656,7 @@ create policy profiles_select on public.profiles
     or app.has_permission('admin.users:view')
   );
 
+drop policy if exists profiles_write on public.profiles;
 create policy profiles_write on public.profiles
   for all to authenticated
   using (app.has_permission('admin.users:manage'))
@@ -654,25 +667,30 @@ create policy profiles_write on public.profiles
 -- the app needs them to render. Neither carries sensitive data.
 -- -----------------------------------------------------------------------------
 
+drop policy if exists roles_select on public.roles;
 create policy roles_select on public.roles
   for select to authenticated
   using (app.is_active_user());
 
+drop policy if exists roles_write on public.roles;
 create policy roles_write on public.roles
   for all to authenticated
   using (app.has_permission('admin.roles:manage'))
   with check (app.has_permission('admin.roles:manage'));
 
+drop policy if exists permissions_select on public.permissions;
 create policy permissions_select on public.permissions
   for select to authenticated
   using (app.is_active_user());
 
 -- No write policy: the catalogue is reference data, changed only by migration.
 
+drop policy if exists role_permissions_select on public.role_permissions;
 create policy role_permissions_select on public.role_permissions
   for select to authenticated
   using (app.is_active_user());
 
+drop policy if exists role_permissions_write on public.role_permissions;
 create policy role_permissions_write on public.role_permissions
   for all to authenticated
   using (app.has_permission('admin.permissions:manage'))
@@ -682,28 +700,34 @@ create policy role_permissions_write on public.role_permissions
 -- User assignments — your own, or admin.users
 -- -----------------------------------------------------------------------------
 
+drop policy if exists user_roles_select on public.user_roles;
 create policy user_roles_select on public.user_roles
   for select to authenticated
   using (user_id = auth.uid() or app.has_permission('admin.users:view'));
 
+drop policy if exists user_roles_write on public.user_roles;
 create policy user_roles_write on public.user_roles
   for all to authenticated
   using (app.has_permission('admin.users:manage'))
   with check (app.has_permission('admin.users:manage'));
 
+drop policy if exists user_permission_overrides_select on public.user_permission_overrides;
 create policy user_permission_overrides_select on public.user_permission_overrides
   for select to authenticated
   using (user_id = auth.uid() or app.has_permission('admin.users:view'));
 
+drop policy if exists user_permission_overrides_write on public.user_permission_overrides;
 create policy user_permission_overrides_write on public.user_permission_overrides
   for all to authenticated
   using (app.has_permission('admin.permissions:manage'))
   with check (app.has_permission('admin.permissions:manage'));
 
+drop policy if exists user_institution_access_select on public.user_institution_access;
 create policy user_institution_access_select on public.user_institution_access
   for select to authenticated
   using (user_id = auth.uid() or app.has_permission('admin.users:view'));
 
+drop policy if exists user_institution_access_write on public.user_institution_access;
 create policy user_institution_access_write on public.user_institution_access
   for all to authenticated
   using (app.has_permission('admin.users:manage'))
@@ -713,10 +737,12 @@ create policy user_institution_access_write on public.user_institution_access
 -- Audit log — append only. Deliberately no update or delete policy.
 -- -----------------------------------------------------------------------------
 
+drop policy if exists audit_logs_select on public.audit_logs;
 create policy audit_logs_select on public.audit_logs
   for select to authenticated
   using (app.has_permission('admin.audit_log:view'));
 
+drop policy if exists audit_logs_insert on public.audit_logs;
 create policy audit_logs_insert on public.audit_logs
   for insert to authenticated
   with check (app.is_active_user() and actor_id = auth.uid());
@@ -1145,6 +1171,7 @@ create index if not exists recurring_obligations_current_idx
   on public.recurring_obligations (institution_id)
   where effective_to is null;
 
+drop trigger if exists recurring_obligations_touch_updated_at on public.recurring_obligations;
 create trigger recurring_obligations_touch_updated_at
   before update on public.recurring_obligations
   for each row execute function app.touch_updated_at();
@@ -1184,6 +1211,23 @@ $$;
 --
 -- SECURITY INVOKER: RLS çağıran kullanıcı için değerlendirilir.
 -- -----------------------------------------------------------------------------
+
+-- Aşırı yükleme birikmesin: aynı adı taşıyan her imza önce düşürülür. Bu dosya
+-- tekrar çalıştırılırsa, sonraki bir göçün eklediği geniş imzanın yanında eski
+-- dar imza da yaşamaya devam ederdi ve çağrılar belirsizleşirdi.
+do $$
+declare
+  v_signature record;
+begin
+  for v_signature in
+    select p.oid::regprocedure as sig
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'set_recurring_obligation'
+  loop
+    execute format('drop function %s', v_signature.sig);
+  end loop;
+end $$;
 
 create or replace function public.set_recurring_obligation(
   p_institution_id  uuid,
@@ -1281,8 +1325,10 @@ begin
 end;
 $$;
 
-comment on function public.set_recurring_obligation is
-  'Eski sürümü kapatır ve yenisini açar. İkisi tek işlemde gerçekleşir.';
+comment on function public.set_recurring_obligation(
+  uuid, app.obligation_type, text, date, numeric, numeric, numeric,
+  smallint, text, app.increase_rule, numeric, text
+) is 'Eski sürümü kapatır ve yenisini açar. İkisi tek işlemde gerçekleşir.';
 
 grant execute on function app.obligation_at(uuid, app.obligation_type, text, date)
   to authenticated;
@@ -1350,6 +1396,7 @@ on conflict do nothing;
 
 alter table public.recurring_obligations enable row level security;
 
+drop policy if exists recurring_obligations_select on public.recurring_obligations;
 create policy recurring_obligations_select on public.recurring_obligations
   for select to authenticated
   using (
@@ -1360,6 +1407,7 @@ create policy recurring_obligations_select on public.recurring_obligations
 -- Bir sürüm eklemek, akış yeniyse oluşturma, mevcutsa düzenlemedir. Hangisinin
 -- gerektiğine `set_recurring_obligation` karar verir; politika ikisini de kabul
 -- eder ki fonksiyon kendi kararını uygulayabilsin.
+drop policy if exists recurring_obligations_insert on public.recurring_obligations;
 create policy recurring_obligations_insert on public.recurring_obligations
   for insert to authenticated
   with check (
@@ -1370,6 +1418,7 @@ create policy recurring_obligations_insert on public.recurring_obligations
     and app.can_access_institution(institution_id)
   );
 
+drop policy if exists recurring_obligations_update on public.recurring_obligations;
 create policy recurring_obligations_update on public.recurring_obligations
   for update to authenticated
   using (
@@ -1381,6 +1430,7 @@ create policy recurring_obligations_update on public.recurring_obligations
     and app.can_access_institution(institution_id)
   );
 
+drop policy if exists recurring_obligations_delete on public.recurring_obligations;
 create policy recurring_obligations_delete on public.recurring_obligations
   for delete to authenticated
   using (
@@ -1487,15 +1537,18 @@ create policy companies_select on public.companies
   for select to authenticated
   using ((select app.is_active_user()));
 
+drop policy if exists companies_insert on public.companies;
 create policy companies_insert on public.companies
   for insert to authenticated
   with check ((select app.has_permission('admin.companies:manage')));
 
+drop policy if exists companies_update on public.companies;
 create policy companies_update on public.companies
   for update to authenticated
   using ((select app.has_permission('admin.companies:manage')))
   with check ((select app.has_permission('admin.companies:manage')));
 
+drop policy if exists companies_delete on public.companies;
 create policy companies_delete on public.companies
   for delete to authenticated
   using ((select app.has_permission('admin.companies:manage')));
@@ -1514,15 +1567,18 @@ create policy institutions_select on public.institutions
     )
   );
 
+drop policy if exists institutions_insert on public.institutions;
 create policy institutions_insert on public.institutions
   for insert to authenticated
   with check ((select app.has_permission('admin.institutions:manage')));
 
+drop policy if exists institutions_update on public.institutions;
 create policy institutions_update on public.institutions
   for update to authenticated
   using ((select app.has_permission('admin.institutions:manage')))
   with check ((select app.has_permission('admin.institutions:manage')));
 
+drop policy if exists institutions_delete on public.institutions;
 create policy institutions_delete on public.institutions
   for delete to authenticated
   using ((select app.has_permission('admin.institutions:manage')));
@@ -1535,15 +1591,18 @@ create policy education_periods_select on public.education_periods
   for select to authenticated
   using ((select app.is_active_user()));
 
+drop policy if exists education_periods_insert on public.education_periods;
 create policy education_periods_insert on public.education_periods
   for insert to authenticated
   with check ((select app.has_permission('admin.education_periods:manage')));
 
+drop policy if exists education_periods_update on public.education_periods;
 create policy education_periods_update on public.education_periods
   for update to authenticated
   using ((select app.has_permission('admin.education_periods:manage')))
   with check ((select app.has_permission('admin.education_periods:manage')));
 
+drop policy if exists education_periods_delete on public.education_periods;
 create policy education_periods_delete on public.education_periods
   for delete to authenticated
   using ((select app.has_permission('admin.education_periods:manage')));
@@ -1559,15 +1618,18 @@ create policy profiles_select on public.profiles
     or (select app.has_permission('admin.users:view'))
   );
 
+drop policy if exists profiles_insert on public.profiles;
 create policy profiles_insert on public.profiles
   for insert to authenticated
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists profiles_update on public.profiles;
 create policy profiles_update on public.profiles
   for update to authenticated
   using ((select app.has_permission('admin.users:manage')))
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists profiles_delete on public.profiles;
 create policy profiles_delete on public.profiles
   for delete to authenticated
   using ((select app.has_permission('admin.users:manage')));
@@ -1580,15 +1642,18 @@ create policy roles_select on public.roles
   for select to authenticated
   using ((select app.is_active_user()));
 
+drop policy if exists roles_insert on public.roles;
 create policy roles_insert on public.roles
   for insert to authenticated
   with check ((select app.has_permission('admin.roles:manage')));
 
+drop policy if exists roles_update on public.roles;
 create policy roles_update on public.roles
   for update to authenticated
   using ((select app.has_permission('admin.roles:manage')))
   with check ((select app.has_permission('admin.roles:manage')));
 
+drop policy if exists roles_delete on public.roles;
 create policy roles_delete on public.roles
   for delete to authenticated
   using ((select app.has_permission('admin.roles:manage')));
@@ -1608,15 +1673,18 @@ create policy role_permissions_select on public.role_permissions
   for select to authenticated
   using ((select app.is_active_user()));
 
+drop policy if exists role_permissions_insert on public.role_permissions;
 create policy role_permissions_insert on public.role_permissions
   for insert to authenticated
   with check ((select app.has_permission('admin.permissions:manage')));
 
+drop policy if exists role_permissions_update on public.role_permissions;
 create policy role_permissions_update on public.role_permissions
   for update to authenticated
   using ((select app.has_permission('admin.permissions:manage')))
   with check ((select app.has_permission('admin.permissions:manage')));
 
+drop policy if exists role_permissions_delete on public.role_permissions;
 create policy role_permissions_delete on public.role_permissions
   for delete to authenticated
   using ((select app.has_permission('admin.permissions:manage')));
@@ -1632,15 +1700,18 @@ create policy user_roles_select on public.user_roles
     or (select app.has_permission('admin.users:view'))
   );
 
+drop policy if exists user_roles_insert on public.user_roles;
 create policy user_roles_insert on public.user_roles
   for insert to authenticated
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists user_roles_update on public.user_roles;
 create policy user_roles_update on public.user_roles
   for update to authenticated
   using ((select app.has_permission('admin.users:manage')))
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists user_roles_delete on public.user_roles;
 create policy user_roles_delete on public.user_roles
   for delete to authenticated
   using ((select app.has_permission('admin.users:manage')));
@@ -1656,15 +1727,18 @@ create policy user_permission_overrides_select on public.user_permission_overrid
     or (select app.has_permission('admin.users:view'))
   );
 
+drop policy if exists user_permission_overrides_insert on public.user_permission_overrides;
 create policy user_permission_overrides_insert on public.user_permission_overrides
   for insert to authenticated
   with check ((select app.has_permission('admin.permissions:manage')));
 
+drop policy if exists user_permission_overrides_update on public.user_permission_overrides;
 create policy user_permission_overrides_update on public.user_permission_overrides
   for update to authenticated
   using ((select app.has_permission('admin.permissions:manage')))
   with check ((select app.has_permission('admin.permissions:manage')));
 
+drop policy if exists user_permission_overrides_delete on public.user_permission_overrides;
 create policy user_permission_overrides_delete on public.user_permission_overrides
   for delete to authenticated
   using ((select app.has_permission('admin.permissions:manage')));
@@ -1680,15 +1754,18 @@ create policy user_institution_access_select on public.user_institution_access
     or (select app.has_permission('admin.users:view'))
   );
 
+drop policy if exists user_institution_access_insert on public.user_institution_access;
 create policy user_institution_access_insert on public.user_institution_access
   for insert to authenticated
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists user_institution_access_update on public.user_institution_access;
 create policy user_institution_access_update on public.user_institution_access
   for update to authenticated
   using ((select app.has_permission('admin.users:manage')))
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists user_institution_access_delete on public.user_institution_access;
 create policy user_institution_access_delete on public.user_institution_access
   for delete to authenticated
   using ((select app.has_permission('admin.users:manage')));
@@ -1805,10 +1882,19 @@ alter table public.recurring_obligations
 -- bu yüzden önce düşürülüyor.
 -- -----------------------------------------------------------------------------
 
-drop function if exists public.set_recurring_obligation(
-  uuid, app.obligation_type, text, date, numeric, numeric, numeric,
-  smallint, text, app.increase_rule, numeric, text
-);
+do $$
+declare
+  v_signature record;
+begin
+  for v_signature in
+    select p.oid::regprocedure as sig
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'set_recurring_obligation'
+  loop
+    execute format('drop function %s', v_signature.sig);
+  end loop;
+end $$;
 
 create or replace function public.set_recurring_obligation(
   p_institution_id  uuid,
@@ -1905,8 +1991,10 @@ begin
 end;
 $$;
 
-comment on function public.set_recurring_obligation is
-  'Eski sürümü kapatır ve yenisini açar. İkisi tek işlemde gerçekleşir.';
+comment on function public.set_recurring_obligation(
+  uuid, app.obligation_type, text, date, numeric, numeric, numeric,
+  smallint, text, app.increase_rule, numeric, smallint, smallint, text
+) is 'Eski sürümü kapatır ve yenisini açar. İkisi tek işlemde gerçekleşir.';
 
 grant execute on function public.set_recurring_obligation(
   uuid, app.obligation_type, text, date, numeric, numeric, numeric,
@@ -1961,6 +2049,7 @@ comment on column public.people.profile_id is
 create index if not exists people_institution_idx on public.people (institution_id);
 create index if not exists people_company_idx on public.people (company_id);
 
+drop trigger if exists people_touch_updated_at on public.people;
 create trigger people_touch_updated_at
   before update on public.people
   for each row execute function app.touch_updated_at();
@@ -2048,6 +2137,7 @@ create index if not exists operations_attention_idx
 create index if not exists operations_responsible_idx
   on public.operations (responsible_person_id);
 
+drop trigger if exists operations_touch_updated_at on public.operations;
 create trigger operations_touch_updated_at
   before update on public.operations
   for each row execute function app.touch_updated_at();
@@ -2069,6 +2159,7 @@ begin
 end;
 $$;
 
+drop trigger if exists operations_stamp_completion on public.operations;
 create trigger operations_stamp_completion
   before insert or update on public.operations
   for each row execute function app.operations_stamp_completion();
@@ -2167,6 +2258,7 @@ begin
 end;
 $$;
 
+drop trigger if exists operations_log_changes on public.operations;
 create trigger operations_log_changes
   after insert or update on public.operations
   for each row execute function app.operations_log_changes();
@@ -2222,24 +2314,29 @@ grant select, insert, update, delete
 grant usage, select on all sequences in schema public to authenticated;
 
 -- People: a staff directory. Names and titles, no money.
+drop policy if exists people_select on public.people;
 create policy people_select on public.people
   for select to authenticated
   using ((select app.has_permission('people:view')));
 
+drop policy if exists people_insert on public.people;
 create policy people_insert on public.people
   for insert to authenticated
   with check ((select app.has_permission('people:manage')));
 
+drop policy if exists people_update on public.people;
 create policy people_update on public.people
   for update to authenticated
   using ((select app.has_permission('people:manage')))
   with check ((select app.has_permission('people:manage')));
 
+drop policy if exists people_delete on public.people;
 create policy people_delete on public.people
   for delete to authenticated
   using ((select app.has_permission('people:manage')));
 
 -- Operations: institution scoped, exactly like everything else.
+drop policy if exists operations_select on public.operations;
 create policy operations_select on public.operations
   for select to authenticated
   using (
@@ -2247,6 +2344,7 @@ create policy operations_select on public.operations
     and app.can_access_institution(institution_id)
   );
 
+drop policy if exists operations_insert on public.operations;
 create policy operations_insert on public.operations
   for insert to authenticated
   with check (
@@ -2254,6 +2352,7 @@ create policy operations_insert on public.operations
     and app.can_access_institution(institution_id)
   );
 
+drop policy if exists operations_update on public.operations;
 create policy operations_update on public.operations
   for update to authenticated
   using (
@@ -2265,6 +2364,7 @@ create policy operations_update on public.operations
     and app.can_access_institution(institution_id)
   );
 
+drop policy if exists operations_delete on public.operations;
 create policy operations_delete on public.operations
   for delete to authenticated
   using (
@@ -2274,6 +2374,7 @@ create policy operations_delete on public.operations
 
 -- Activity history follows its operation. Append only: no update or delete
 -- policy, so the trail cannot be rewritten after the fact.
+drop policy if exists operation_updates_select on public.operation_updates;
 create policy operation_updates_select on public.operation_updates
   for select to authenticated
   using (
@@ -2281,6 +2382,7 @@ create policy operation_updates_select on public.operation_updates
     and app.can_access_operation(operation_id)
   );
 
+drop policy if exists operation_updates_insert on public.operation_updates;
 create policy operation_updates_insert on public.operation_updates
   for insert to authenticated
   with check (

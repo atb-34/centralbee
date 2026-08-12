@@ -41,6 +41,7 @@ comment on column public.people.profile_id is
 create index if not exists people_institution_idx on public.people (institution_id);
 create index if not exists people_company_idx on public.people (company_id);
 
+drop trigger if exists people_touch_updated_at on public.people;
 create trigger people_touch_updated_at
   before update on public.people
   for each row execute function app.touch_updated_at();
@@ -128,6 +129,7 @@ create index if not exists operations_attention_idx
 create index if not exists operations_responsible_idx
   on public.operations (responsible_person_id);
 
+drop trigger if exists operations_touch_updated_at on public.operations;
 create trigger operations_touch_updated_at
   before update on public.operations
   for each row execute function app.touch_updated_at();
@@ -149,6 +151,7 @@ begin
 end;
 $$;
 
+drop trigger if exists operations_stamp_completion on public.operations;
 create trigger operations_stamp_completion
   before insert or update on public.operations
   for each row execute function app.operations_stamp_completion();
@@ -247,6 +250,7 @@ begin
 end;
 $$;
 
+drop trigger if exists operations_log_changes on public.operations;
 create trigger operations_log_changes
   after insert or update on public.operations
   for each row execute function app.operations_log_changes();
@@ -302,24 +306,29 @@ grant select, insert, update, delete
 grant usage, select on all sequences in schema public to authenticated;
 
 -- People: a staff directory. Names and titles, no money.
+drop policy if exists people_select on public.people;
 create policy people_select on public.people
   for select to authenticated
   using ((select app.has_permission('people:view')));
 
+drop policy if exists people_insert on public.people;
 create policy people_insert on public.people
   for insert to authenticated
   with check ((select app.has_permission('people:manage')));
 
+drop policy if exists people_update on public.people;
 create policy people_update on public.people
   for update to authenticated
   using ((select app.has_permission('people:manage')))
   with check ((select app.has_permission('people:manage')));
 
+drop policy if exists people_delete on public.people;
 create policy people_delete on public.people
   for delete to authenticated
   using ((select app.has_permission('people:manage')));
 
 -- Operations: institution scoped, exactly like everything else.
+drop policy if exists operations_select on public.operations;
 create policy operations_select on public.operations
   for select to authenticated
   using (
@@ -327,6 +336,7 @@ create policy operations_select on public.operations
     and app.can_access_institution(institution_id)
   );
 
+drop policy if exists operations_insert on public.operations;
 create policy operations_insert on public.operations
   for insert to authenticated
   with check (
@@ -334,6 +344,7 @@ create policy operations_insert on public.operations
     and app.can_access_institution(institution_id)
   );
 
+drop policy if exists operations_update on public.operations;
 create policy operations_update on public.operations
   for update to authenticated
   using (
@@ -345,6 +356,7 @@ create policy operations_update on public.operations
     and app.can_access_institution(institution_id)
   );
 
+drop policy if exists operations_delete on public.operations;
 create policy operations_delete on public.operations
   for delete to authenticated
   using (
@@ -354,6 +366,7 @@ create policy operations_delete on public.operations
 
 -- Activity history follows its operation. Append only: no update or delete
 -- policy, so the trail cannot be rewritten after the fact.
+drop policy if exists operation_updates_select on public.operation_updates;
 create policy operation_updates_select on public.operation_updates
   for select to authenticated
   using (
@@ -361,6 +374,7 @@ create policy operation_updates_select on public.operation_updates
     and app.can_access_operation(operation_id)
   );
 
+drop policy if exists operation_updates_insert on public.operation_updates;
 create policy operation_updates_insert on public.operation_updates
   for insert to authenticated
   with check (

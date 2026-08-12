@@ -34,6 +34,7 @@ create table if not exists public.companies (
 comment on column public.companies.default_salary_payment_day is
   'Default day of month salaries are paid. A starting point only — institutions override it.';
 
+drop trigger if exists companies_touch_updated_at on public.companies;
 create trigger companies_touch_updated_at
   before update on public.companies
   for each row execute function app.touch_updated_at();
@@ -73,6 +74,7 @@ create table if not exists public.institutions (
 create index if not exists institutions_company_id_idx on public.institutions (company_id);
 create index if not exists institutions_status_idx on public.institutions (status);
 
+drop trigger if exists institutions_touch_updated_at on public.institutions;
 create trigger institutions_touch_updated_at
   before update on public.institutions
   for each row execute function app.touch_updated_at();
@@ -104,6 +106,7 @@ create table if not exists public.education_periods (
 create unique index if not exists education_periods_single_active_idx
   on public.education_periods ((is_active)) where is_active;
 
+drop trigger if exists education_periods_touch_updated_at on public.education_periods;
 create trigger education_periods_touch_updated_at
   before update on public.education_periods
   for each row execute function app.touch_updated_at();

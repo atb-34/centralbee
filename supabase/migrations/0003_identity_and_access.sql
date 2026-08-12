@@ -46,6 +46,7 @@ comment on column public.profiles.institution_scope is
 create index if not exists profiles_primary_institution_idx
   on public.profiles (primary_institution_id);
 
+drop trigger if exists profiles_touch_updated_at on public.profiles;
 create trigger profiles_touch_updated_at
   before update on public.profiles
   for each row execute function app.touch_updated_at();
@@ -83,6 +84,7 @@ comment on column public.roles.is_system is
 comment on column public.roles.rank is
   'Lower ranks outrank higher ones; used for ordering, not for authorisation.';
 
+drop trigger if exists roles_touch_updated_at on public.roles;
 create trigger roles_touch_updated_at
   before update on public.roles
   for each row execute function app.touch_updated_at();

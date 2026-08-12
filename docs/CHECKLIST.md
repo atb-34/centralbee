@@ -163,6 +163,9 @@ bağlantıdan kötüdür; bu modüller kendi fazlarında eklenecek.
 ## Her fazda geçerli
 
 - [ ] Şema değişikliği → yeni göç dosyası. Supabase panelinden elle değişiklik yok.
+- [ ] Her göç **tekrar çalıştırılabilir** olmalı. SQL elle yapıştırıldığı için
+      aynı dosyanın iki kez çalıştırılması olağan bir hatadır; ikinci çalıştırma
+      da temiz geçmeli. `npm run db:test` bunu her seferinde sınar.
 - [ ] Yeni hesap → `lib/calc/` altına, birim testiyle birlikte. Sayfa içinde
       hesap yapılmaz.
 - [ ] Yeni tablo → RLS açık ve politikaları yazılmış olarak gelir.
