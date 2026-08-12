@@ -172,6 +172,16 @@ Aynı kurumda aynı türden birden fazla yükümlülük olabilir — iki bina, i
 sözleşmesi. Bunları `stream_name` ayırır; sürüm çakışma kısıtı akış başına
 işler.
 
+**Yükümlülükler kurumun içinde yaşar.** Maaş, kira ve SGK bir kuruma ait
+bilgilerdir; kenar çubuğunda ayrı bir başlık değildirler. Kurum sayfası o
+kurumla ilgili her şeyin tek yeridir: bilgileri düzenlemek, yükümlülükleri
+görmek ve operasyonları takip etmek aynı ekrandan yapılır.
+
+Bir dönem grup geneli bir "Yükümlülükler" ekranı denendi ve kaldırıldı: menüde
+kurumdan bağımsız bir başlık, kullanıcının zihnindeki "kuruma girip bakarım"
+akışıyla çakışıyordu. Grup toplamı gerektiğinde Finansal Raporlar'ın altına
+gelecek — kendi başına bir menü başlığı olarak değil.
+
 **Eğitim dönemleri çakışamaz.** `education_periods` üzerinde bir `EXCLUDE`
 kısıtı vardır: iki dönem aynı günü kapsayamaz. Aksi halde bir işlem tarihi iki
 döneme birden düşer ve her rapor iki kez sayar.
