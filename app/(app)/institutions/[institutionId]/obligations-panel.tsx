@@ -9,6 +9,8 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   INCREASE_RULE_LABELS,
   OBLIGATION_LABELS,
+  OBLIGATION_ORDER,
+  costByType,
   daysUntil,
   groupIntoStreams,
   monthlyFixedCost,
@@ -58,6 +60,8 @@ export function ObligationsPanel({
   const monthlyTotal = monthlyFixedCost(streams);
   const salary = salarySplit(streams);
   const upcoming = upcomingPayments(streams, companyDefaultDay);
+  const byType = costByType(streams);
+  const typeBreakdown = OBLIGATION_ORDER.filter((type) => byType[type] > 0);
 
   const addButton = canEdit ? (
     <ObligationDialog
@@ -89,6 +93,16 @@ export function ObligationsPanel({
         <MetricCard
           label="Aylık sabit gider"
           value={formatMoneyCompact(monthlyTotal)}
+          comparison={
+            typeBreakdown.length > 1
+              ? typeBreakdown
+                  .map(
+                    (type) =>
+                      `${OBLIGATION_LABELS[type]} ${formatMoneyCompact(byType[type])}`
+                  )
+                  .join(" · ")
+              : undefined
+          }
           context={`${active.length} yürürlükteki yükümlülük`}
         />
         {salary.total > 0 ? (

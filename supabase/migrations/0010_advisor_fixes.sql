@@ -90,15 +90,18 @@ create policy companies_select on public.companies
   for select to authenticated
   using ((select app.is_active_user()));
 
+drop policy if exists companies_insert on public.companies;
 create policy companies_insert on public.companies
   for insert to authenticated
   with check ((select app.has_permission('admin.companies:manage')));
 
+drop policy if exists companies_update on public.companies;
 create policy companies_update on public.companies
   for update to authenticated
   using ((select app.has_permission('admin.companies:manage')))
   with check ((select app.has_permission('admin.companies:manage')));
 
+drop policy if exists companies_delete on public.companies;
 create policy companies_delete on public.companies
   for delete to authenticated
   using ((select app.has_permission('admin.companies:manage')));
@@ -117,15 +120,18 @@ create policy institutions_select on public.institutions
     )
   );
 
+drop policy if exists institutions_insert on public.institutions;
 create policy institutions_insert on public.institutions
   for insert to authenticated
   with check ((select app.has_permission('admin.institutions:manage')));
 
+drop policy if exists institutions_update on public.institutions;
 create policy institutions_update on public.institutions
   for update to authenticated
   using ((select app.has_permission('admin.institutions:manage')))
   with check ((select app.has_permission('admin.institutions:manage')));
 
+drop policy if exists institutions_delete on public.institutions;
 create policy institutions_delete on public.institutions
   for delete to authenticated
   using ((select app.has_permission('admin.institutions:manage')));
@@ -138,15 +144,18 @@ create policy education_periods_select on public.education_periods
   for select to authenticated
   using ((select app.is_active_user()));
 
+drop policy if exists education_periods_insert on public.education_periods;
 create policy education_periods_insert on public.education_periods
   for insert to authenticated
   with check ((select app.has_permission('admin.education_periods:manage')));
 
+drop policy if exists education_periods_update on public.education_periods;
 create policy education_periods_update on public.education_periods
   for update to authenticated
   using ((select app.has_permission('admin.education_periods:manage')))
   with check ((select app.has_permission('admin.education_periods:manage')));
 
+drop policy if exists education_periods_delete on public.education_periods;
 create policy education_periods_delete on public.education_periods
   for delete to authenticated
   using ((select app.has_permission('admin.education_periods:manage')));
@@ -162,15 +171,18 @@ create policy profiles_select on public.profiles
     or (select app.has_permission('admin.users:view'))
   );
 
+drop policy if exists profiles_insert on public.profiles;
 create policy profiles_insert on public.profiles
   for insert to authenticated
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists profiles_update on public.profiles;
 create policy profiles_update on public.profiles
   for update to authenticated
   using ((select app.has_permission('admin.users:manage')))
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists profiles_delete on public.profiles;
 create policy profiles_delete on public.profiles
   for delete to authenticated
   using ((select app.has_permission('admin.users:manage')));
@@ -183,15 +195,18 @@ create policy roles_select on public.roles
   for select to authenticated
   using ((select app.is_active_user()));
 
+drop policy if exists roles_insert on public.roles;
 create policy roles_insert on public.roles
   for insert to authenticated
   with check ((select app.has_permission('admin.roles:manage')));
 
+drop policy if exists roles_update on public.roles;
 create policy roles_update on public.roles
   for update to authenticated
   using ((select app.has_permission('admin.roles:manage')))
   with check ((select app.has_permission('admin.roles:manage')));
 
+drop policy if exists roles_delete on public.roles;
 create policy roles_delete on public.roles
   for delete to authenticated
   using ((select app.has_permission('admin.roles:manage')));
@@ -211,15 +226,18 @@ create policy role_permissions_select on public.role_permissions
   for select to authenticated
   using ((select app.is_active_user()));
 
+drop policy if exists role_permissions_insert on public.role_permissions;
 create policy role_permissions_insert on public.role_permissions
   for insert to authenticated
   with check ((select app.has_permission('admin.permissions:manage')));
 
+drop policy if exists role_permissions_update on public.role_permissions;
 create policy role_permissions_update on public.role_permissions
   for update to authenticated
   using ((select app.has_permission('admin.permissions:manage')))
   with check ((select app.has_permission('admin.permissions:manage')));
 
+drop policy if exists role_permissions_delete on public.role_permissions;
 create policy role_permissions_delete on public.role_permissions
   for delete to authenticated
   using ((select app.has_permission('admin.permissions:manage')));
@@ -235,15 +253,18 @@ create policy user_roles_select on public.user_roles
     or (select app.has_permission('admin.users:view'))
   );
 
+drop policy if exists user_roles_insert on public.user_roles;
 create policy user_roles_insert on public.user_roles
   for insert to authenticated
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists user_roles_update on public.user_roles;
 create policy user_roles_update on public.user_roles
   for update to authenticated
   using ((select app.has_permission('admin.users:manage')))
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists user_roles_delete on public.user_roles;
 create policy user_roles_delete on public.user_roles
   for delete to authenticated
   using ((select app.has_permission('admin.users:manage')));
@@ -259,15 +280,18 @@ create policy user_permission_overrides_select on public.user_permission_overrid
     or (select app.has_permission('admin.users:view'))
   );
 
+drop policy if exists user_permission_overrides_insert on public.user_permission_overrides;
 create policy user_permission_overrides_insert on public.user_permission_overrides
   for insert to authenticated
   with check ((select app.has_permission('admin.permissions:manage')));
 
+drop policy if exists user_permission_overrides_update on public.user_permission_overrides;
 create policy user_permission_overrides_update on public.user_permission_overrides
   for update to authenticated
   using ((select app.has_permission('admin.permissions:manage')))
   with check ((select app.has_permission('admin.permissions:manage')));
 
+drop policy if exists user_permission_overrides_delete on public.user_permission_overrides;
 create policy user_permission_overrides_delete on public.user_permission_overrides
   for delete to authenticated
   using ((select app.has_permission('admin.permissions:manage')));
@@ -283,15 +307,18 @@ create policy user_institution_access_select on public.user_institution_access
     or (select app.has_permission('admin.users:view'))
   );
 
+drop policy if exists user_institution_access_insert on public.user_institution_access;
 create policy user_institution_access_insert on public.user_institution_access
   for insert to authenticated
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists user_institution_access_update on public.user_institution_access;
 create policy user_institution_access_update on public.user_institution_access
   for update to authenticated
   using ((select app.has_permission('admin.users:manage')))
   with check ((select app.has_permission('admin.users:manage')));
 
+drop policy if exists user_institution_access_delete on public.user_institution_access;
 create policy user_institution_access_delete on public.user_institution_access
   for delete to authenticated
   using ((select app.has_permission('admin.users:manage')));

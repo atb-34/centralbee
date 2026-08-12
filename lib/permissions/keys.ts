@@ -10,6 +10,8 @@ export const MODULES = {
   /** Money data on an institution: salary, rent, SGK. Deliberately separate. */
   institutionObligations: "institutions.obligations",
   operations: "operations",
+  /** Staff and counterparty directory: who is responsible for what. */
+  people: "people",
   reportsPerformance: "reports.performance",
   reportsRanking: "reports.performance.ranking",
   reportsFinancial: "reports.financial",

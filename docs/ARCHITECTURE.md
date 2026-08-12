@@ -146,8 +146,9 @@ transactions     enrollments     targets          obligations   ...
 | Kimlik ve yetki | `profiles` `roles` `permissions` `role_permissions` `user_roles` `user_permission_overrides` `user_institution_access` | 1 ✅ |
 | Kuruluş yapısı | `companies` `institutions` `education_periods` | 1 ✅ |
 | Yükümlülükler | `recurring_obligations` (sürümlü) | 2 ✅ |
+| Kişiler | `people` | 3 ✅ |
+| Operasyon | `operations` `operation_updates` | 3 ✅ |
 | Platform | `data_import_batches` `data_import_errors` `audit_logs` | 1 (kısmi) |
-| Kişiler | `people` | 3 (gerçekten kullanılacağı faz) |
 | Performans | `sales_enrollments` `performance_targets` `crm_daily` | 5 |
 | Finans | `financial_transactions` `financial_categories` `financial_subcategories` `bank_accounts` `cash_position_snapshots` `cash_position_items` | 6 |
 | Nakit tahmini | `pos_receivables` `pos_settlements` `checks` `scheduled_payments` `recurring_obligations` `current_payables` `forecast_assumptions` | 2, 7 |
@@ -170,6 +171,16 @@ olur ya hiç olmaz. Uygulama katmanı bu iki adımı ayrı ayrı yapamaz.
 Aynı kurumda aynı türden birden fazla yükümlülük olabilir — iki bina, iki kira
 sözleşmesi. Bunları `stream_name` ayırır; sürüm çakışma kısıtı akış başına
 işler.
+
+**Yükümlülükler kurumun içinde yaşar.** Maaş, kira ve SGK bir kuruma ait
+bilgilerdir; kenar çubuğunda ayrı bir başlık değildirler. Kurum sayfası o
+kurumla ilgili her şeyin tek yeridir: bilgileri düzenlemek, yükümlülükleri
+görmek ve operasyonları takip etmek aynı ekrandan yapılır.
+
+Bir dönem grup geneli bir "Yükümlülükler" ekranı denendi ve kaldırıldı: menüde
+kurumdan bağımsız bir başlık, kullanıcının zihnindeki "kuruma girip bakarım"
+akışıyla çakışıyordu. Grup toplamı gerektiğinde Finansal Raporlar'ın altına
+gelecek — kendi başına bir menü başlığı olarak değil.
 
 **Eğitim dönemleri çakışamaz.** `education_periods` üzerinde bir `EXCLUDE`
 kısıtı vardır: iki dönem aynı günü kapsayamaz. Aksi halde bir işlem tarihi iki

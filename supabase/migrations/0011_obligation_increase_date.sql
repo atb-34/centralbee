@@ -49,10 +49,19 @@ alter table public.recurring_obligations
 -- bu yüzden önce düşürülüyor.
 -- -----------------------------------------------------------------------------
 
-drop function if exists public.set_recurring_obligation(
-  uuid, app.obligation_type, text, date, numeric, numeric, numeric,
-  smallint, text, app.increase_rule, numeric, text
-);
+do $$
+declare
+  v_signature record;
+begin
+  for v_signature in
+    select p.oid::regprocedure as sig
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'set_recurring_obligation'
+  loop
+    execute format('drop function %s', v_signature.sig);
+  end loop;
+end $$;
 
 create or replace function public.set_recurring_obligation(
   p_institution_id  uuid,
@@ -149,8 +158,10 @@ begin
 end;
 $$;
 
-comment on function public.set_recurring_obligation is
-  'Eski sürümü kapatır ve yenisini açar. İkisi tek işlemde gerçekleşir.';
+comment on function public.set_recurring_obligation(
+  uuid, app.obligation_type, text, date, numeric, numeric, numeric,
+  smallint, text, app.increase_rule, numeric, smallint, smallint, text
+) is 'Eski sürümü kapatır ve yenisini açar. İkisi tek işlemde gerçekleşir.';
 
 grant execute on function public.set_recurring_obligation(
   uuid, app.obligation_type, text, date, numeric, numeric, numeric,

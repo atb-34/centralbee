@@ -2,12 +2,13 @@ import type { LucideIcon } from "lucide-react";
 import {
   Building2,
   CalendarRange,
+  ClipboardList,
+  Contact,
   ScrollText,
   Settings,
   ShieldCheck,
   Sun,
   Users,
-  Wallet,
 } from "lucide-react";
 
 import { MODULES, permission } from "@/lib/permissions/keys";
@@ -50,14 +51,15 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Building2,
         anyOf: [permission(MODULES.institutions, "view")],
       },
+      // Yükümlülükler bilerek burada değil: maaş, kira ve SGK bir kuruma ait
+      // bilgilerdir ve o kurumun sayfasında yaşarlar. Grup geneli toplam
+      // gerektiğinde Finansal Raporlar'ın altına gelecek, kendi başına bir
+      // menü başlığı olarak değil.
       {
-        // "What are the group's fixed monthly costs?" is an executive question.
-        // Answering it by walking into each institution in turn is not an
-        // answer, so the roll-up lives at the top level.
-        label: "Yükümlülükler",
-        href: "/obligations",
-        icon: Wallet,
-        anyOf: [permission(MODULES.institutionObligations, "view")],
+        label: "Operasyon",
+        href: "/operations",
+        icon: ClipboardList,
+        anyOf: [permission(MODULES.operations, "view")],
       },
     ],
   },
@@ -70,6 +72,12 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/admin/users",
         icon: Users,
         anyOf: [permission(MODULES.adminUsers, "view")],
+      },
+      {
+        label: "Kişiler",
+        href: "/admin/people",
+        icon: Contact,
+        anyOf: [permission(MODULES.people, "view")],
       },
       {
         label: "Roller ve Yetkiler",

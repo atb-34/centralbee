@@ -107,6 +107,7 @@ create index if not exists recurring_obligations_current_idx
   on public.recurring_obligations (institution_id)
   where effective_to is null;
 
+drop trigger if exists recurring_obligations_touch_updated_at on public.recurring_obligations;
 create trigger recurring_obligations_touch_updated_at
   before update on public.recurring_obligations
   for each row execute function app.touch_updated_at();
@@ -146,6 +147,23 @@ $$;
 --
 -- SECURITY INVOKER: RLS çağıran kullanıcı için değerlendirilir.
 -- -----------------------------------------------------------------------------
+
+-- Aşırı yükleme birikmesin: aynı adı taşıyan her imza önce düşürülür. Bu dosya
+-- tekrar çalıştırılırsa, sonraki bir göçün eklediği geniş imzanın yanında eski
+-- dar imza da yaşamaya devam ederdi ve çağrılar belirsizleşirdi.
+do $$
+declare
+  v_signature record;
+begin
+  for v_signature in
+    select p.oid::regprocedure as sig
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'set_recurring_obligation'
+  loop
+    execute format('drop function %s', v_signature.sig);
+  end loop;
+end $$;
 
 create or replace function public.set_recurring_obligation(
   p_institution_id  uuid,
@@ -243,8 +261,10 @@ begin
 end;
 $$;
 
-comment on function public.set_recurring_obligation is
-  'Eski sürümü kapatır ve yenisini açar. İkisi tek işlemde gerçekleşir.';
+comment on function public.set_recurring_obligation(
+  uuid, app.obligation_type, text, date, numeric, numeric, numeric,
+  smallint, text, app.increase_rule, numeric, text
+) is 'Eski sürümü kapatır ve yenisini açar. İkisi tek işlemde gerçekleşir.';
 
 grant execute on function app.obligation_at(uuid, app.obligation_type, text, date)
   to authenticated;
@@ -312,6 +332,7 @@ on conflict do nothing;
 
 alter table public.recurring_obligations enable row level security;
 
+drop policy if exists recurring_obligations_select on public.recurring_obligations;
 create policy recurring_obligations_select on public.recurring_obligations
   for select to authenticated
   using (
@@ -322,6 +343,7 @@ create policy recurring_obligations_select on public.recurring_obligations
 -- Bir sürüm eklemek, akış yeniyse oluşturma, mevcutsa düzenlemedir. Hangisinin
 -- gerektiğine `set_recurring_obligation` karar verir; politika ikisini de kabul
 -- eder ki fonksiyon kendi kararını uygulayabilsin.
+drop policy if exists recurring_obligations_insert on public.recurring_obligations;
 create policy recurring_obligations_insert on public.recurring_obligations
   for insert to authenticated
   with check (
@@ -332,6 +354,7 @@ create policy recurring_obligations_insert on public.recurring_obligations
     and app.can_access_institution(institution_id)
   );
 
+drop policy if exists recurring_obligations_update on public.recurring_obligations;
 create policy recurring_obligations_update on public.recurring_obligations
   for update to authenticated
   using (
@@ -343,6 +366,7 @@ create policy recurring_obligations_update on public.recurring_obligations
     and app.can_access_institution(institution_id)
   );
 
+drop policy if exists recurring_obligations_delete on public.recurring_obligations;
 create policy recurring_obligations_delete on public.recurring_obligations
   for delete to authenticated
   using (
